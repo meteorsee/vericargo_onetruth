@@ -58,6 +58,20 @@ CoCo planning and review session:
 cortex -w . -c YOUR_HACKATHON_CONNECTION --plan
 ```
 
+If Windows has not refreshed `PATH`, or if this is the first connection setup, use the
+repository launcher instead:
+
+```powershell
+# First run: opens CoCo's connection picker/setup wizard.
+.\scripts\start_coco.cmd --check
+.\scripts\start_coco.cmd
+
+# Later runs: replace the value with the real connection name selected in the wizard.
+.\scripts\start_coco.cmd YOUR_REAL_CONNECTION_NAME
+```
+
+`YOUR_HACKATHON_CONNECTION` is documentation notation, not a literal connection name.
+
 Use the opening prompt in [`COCO_USAGE.md`](COCO_USAGE.md), approve the implementation
 plan, then switch to Agent mode and have CoCo inspect, revise, execute, and test the
 project. Record real session IDs, screenshots, commands, failures, fixes, and query IDs.
@@ -72,6 +86,14 @@ deploys Streamlit:
 .\scripts\deploy.ps1 -Connection YOUR_HACKATHON_CONNECTION
 ```
 
+If PowerShell reports that script execution is disabled, invoke it without changing the
+machine-wide policy:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy.ps1 `
+  -Connection YOUR_REAL_CONNECTION_NAME -RunAgentTests
+```
+
 The helper is intentionally explicit: it stops on the first failed Snowflake command and
 does not hide partially deployed state. Run it from CoCo so execution evidence is captured.
 
@@ -82,7 +104,8 @@ to `@VERICARGO_ONETRUTH.RAW.CSV_STAGE`, upload documents to
 Create the read-only hosted CoCo automation after the core deployment:
 
 ```powershell
-.\scripts\create_coco_automation.ps1 -Connection YOUR_HACKATHON_CONNECTION
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  .\scripts\create_coco_automation.ps1 -Connection YOUR_REAL_CONNECTION_NAME
 ```
 
 Run it once manually, inspect its transcript with `cortex automation doctor`, and record

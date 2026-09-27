@@ -6,6 +6,10 @@ CoCo CLI or Desktop.
 
 ## Opening planning prompt
 
+Start Plan mode with `./scripts/start_coco.cmd`. Omit the connection on the first run to
+open CoCo's connection picker; after setup, pass the real configured connection name as
+the first argument.
+
 ```text
 You are planning VeriCargo OneTruth for Challenge 5 of the Snowflake CoCo CLI Hackathon.
 Inspect this repository and the generated synthetic data without editing files. Validate
@@ -64,9 +68,12 @@ review, Streamlit integration, and least-privilege action-tool review.
 Create the hosted read-only digest only after the core objects validate:
 
 ```powershell
-.\scripts\create_coco_automation.ps1 -Connection YOUR_HACKATHON_CONNECTION
-cortex -c YOUR_HACKATHON_CONNECTION automation execute vericargo_daily_exception_digest --wait
-cortex -c YOUR_HACKATHON_CONNECTION automation doctor vericargo_daily_exception_digest
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  .\scripts\create_coco_automation.ps1 -Connection YOUR_REAL_CONNECTION_NAME
+& "$env:LOCALAPPDATA\cortex\bin\cortex.cmd" -c YOUR_REAL_CONNECTION_NAME `
+  automation execute vericargo_daily_exception_digest --wait
+& "$env:LOCALAPPDATA\cortex\bin\cortex.cmd" -c YOUR_REAL_CONNECTION_NAME `
+  automation doctor vericargo_daily_exception_digest
 ```
 
 ## Suggested evidence filename convention
