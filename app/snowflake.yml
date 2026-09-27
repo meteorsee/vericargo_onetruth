@@ -9,6 +9,7 @@ entities:
     title: VeriCargo OneTruth
     comment: Governed supply-chain ontology and exception copilot
     query_warehouse: VERICARGO_WH
+    runtime_name: SYSTEM$WAREHOUSE_RUNTIME
     main_file: streamlit_app.py
     artifacts:
       - streamlit_app.py

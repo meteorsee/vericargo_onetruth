@@ -9,7 +9,7 @@ description = "Governed supply-chain ontology and exception copilot on Snowflake
 requires-python = ">=3.11"
 dependencies = [
   "snowflake-snowpark-python>=1.39,<2",
-  "streamlit>=1.49,<2",
+  "streamlit==1.49.1",
 ]
 
 [project.optional-dependencies]
