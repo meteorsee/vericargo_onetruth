@@ -31,6 +31,17 @@ class SyntheticDataTests(unittest.TestCase):
                 {"MATCH", "MISMATCH", "MISSING_DOCUMENT", "UNREADABLE", "AMBIGUOUS"},
             )
 
+    def test_generated_readable_pdfs_have_valid_cross_reference_offsets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            datasets = generate_dataset(directory)
+            documents = Path(directory) / "documents"
+            for row in datasets["document_manifest"]:
+                if row["shipment_id"] == "SHP-1004" and row["document_type"] == "DRAFT_BL":
+                    continue
+                payload = (documents / row["relative_path"]).read_bytes()
+                xref_offset = int(payload.rsplit(b"startxref\n", maxsplit=1)[1].splitlines()[0])
+                self.assertEqual(payload[xref_offset : xref_offset + 4], b"xref")
+
 
 if __name__ == "__main__":
     unittest.main()
