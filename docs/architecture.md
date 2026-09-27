@@ -1,5 +1,11 @@
 # Architecture and governed definitions
 
+![VeriCargo OneTruth architecture](architecture-diagram.svg)
+
+The diagram separates the **CoCo-assisted delivery lifecycle** from the **Snowflake
+runtime**. CoCo is used to plan, build, deploy, test, and automate the solution; the
+deployed Snowflake services and Streamlit application handle production execution.
+
 ```mermaid
 flowchart LR
   S[Synthetic ERP, logistics, inventory, cost CSVs] --> R[Snowflake RAW]
