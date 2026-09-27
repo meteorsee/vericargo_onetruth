@@ -1,0 +1,15 @@
+definition_version: 2
+entities:
+  vericargo_onetruth:
+    type: streamlit
+    identifier:
+      name: VERICARGO_ONETRUTH_APP
+      database: VERICARGO_ONETRUTH
+      schema: APP
+    title: VeriCargo OneTruth
+    comment: Governed supply-chain ontology and exception copilot
+    query_warehouse: VERICARGO_WH
+    main_file: streamlit_app.py
+    artifacts:
+      - streamlit_app.py
+      - environment.yml

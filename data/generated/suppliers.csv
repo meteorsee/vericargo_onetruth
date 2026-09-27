@@ -1,0 +1,4 @@
+supplier_id,supplier_name,country,risk_tier
+SUP-001,Nimbus Components,Malaysia,LOW
+SUP-002,Straits Metals,Malaysia,MEDIUM
+SUP-003,Hanse Precision,Germany,LOW

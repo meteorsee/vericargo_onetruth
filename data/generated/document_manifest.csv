@@ -1,0 +1,13 @@
+document_id,shipment_id,document_type,relative_path
+DOC-SHP-1001-SI,SHP-1001,SI,doc-shp-1001-si.pdf
+DOC-SHP-1001-BL,SHP-1001,DRAFT_BL,doc-shp-1001-bl.pdf
+DOC-SHP-1002-SI,SHP-1002,SI,doc-shp-1002-si.pdf
+DOC-SHP-1002-BL,SHP-1002,DRAFT_BL,doc-shp-1002-bl.pdf
+DOC-SHP-1003-SI,SHP-1003,SI,doc-shp-1003-si.pdf
+DOC-SHP-1004-SI,SHP-1004,SI,doc-shp-1004-si.pdf
+DOC-SHP-1004-BL,SHP-1004,DRAFT_BL,doc-shp-1004-bl.pdf
+DOC-SHP-1005-SI,SHP-1005,SI,doc-shp-1005-si.pdf
+DOC-SHP-1005-BL,SHP-1005,DRAFT_BL,doc-shp-1005-bl.pdf
+DOC-SHP-1006-SI,SHP-1006,SI,doc-shp-1006-si.pdf
+DOC-SHP-1006-BL,SHP-1006,DRAFT_BL,doc-shp-1006-bl.pdf
+DOC-SHP-1006-SI-B,SHP-1006,SI,doc-shp-1006-si-b.pdf

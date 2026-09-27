@@ -1,0 +1,5 @@
+part_id,supplier_id,part_name,unit_cost_usd
+PART-001,SUP-001,ECU Control Module,120.00
+PART-002,SUP-002,Valve Assembly,80.00
+PART-003,SUP-001,Sensor Kit,65.00
+PART-004,SUP-003,Precision Housing,95.00
