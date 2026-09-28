@@ -2,6 +2,5 @@ name: vericargo-onetruth-streamlit
 channels:
   - snowflake
 dependencies:
-  - python=3.11
   - streamlit=1.49.1
   - snowflake-snowpark-python
