@@ -43,8 +43,8 @@ def validate_review_case(
     if not 5 <= len(reason) <= 1000:
         raise ReviewValidationError("Reason must be between 5 and 1,000 characters.")
     source_question = request.source_question.strip()
-    if len(source_question) > 2000:
-        raise ReviewValidationError("Source question cannot exceed 2,000 characters.")
+    if len(source_question) < 3 or len(source_question) > 2000:
+        raise ReviewValidationError("Source question must be between 3 and 2,000 characters.")
     return ReviewCaseRequest(
         shipment_id=shipment_id,
         reason=reason,

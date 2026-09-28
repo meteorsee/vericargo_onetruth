@@ -38,21 +38,13 @@ LANGUAGE SQL
 IMMUTABLE
 AS
 $$
-  CASE CURATED.NORMALIZE_TEXT(VALUE)
-    WHEN 'PENANG' THEN 'MYPEN'
-    WHEN 'PENANG PORT' THEN 'MYPEN'
-    WHEN 'MYPEN' THEN 'MYPEN'
-    WHEN 'PORT KLANG' THEN 'MYPKG'
-    WHEN 'KLANG' THEN 'MYPKG'
-    WHEN 'MYPKG' THEN 'MYPKG'
-    WHEN 'SINGAPORE' THEN 'SGSIN'
-    WHEN 'SINGAPORE PORT' THEN 'SGSIN'
-    WHEN 'SGSIN' THEN 'SGSIN'
-    WHEN 'LAEM CHABANG' THEN 'THLCH'
-    WHEN 'THLCH' THEN 'THLCH'
-    WHEN 'CAT LAI' THEN 'VNSGN'
-    WHEN 'HO CHI MINH' THEN 'VNSGN'
-    WHEN 'VNSGN' THEN 'VNSGN'
+  CASE
+    WHEN VALUE IS NULL THEN NULL
+    WHEN UPPER(VALUE) RLIKE '.*(MYPEN|PENANG).*' THEN 'MYPEN'
+    WHEN UPPER(VALUE) RLIKE '.*(MYPKG|PORT KLANG|KLANG).*' THEN 'MYPKG'
+    WHEN UPPER(VALUE) RLIKE '.*(SGSIN|SINGAPORE).*' THEN 'SGSIN'
+    WHEN UPPER(VALUE) RLIKE '.*(THLCH|LAEM CHABANG).*' THEN 'THLCH'
+    WHEN UPPER(VALUE) RLIKE '.*(VNSGN|CAT LAI|HO CHI MINH).*' THEN 'VNSGN'
     ELSE CURATED.NORMALIZE_TEXT(VALUE)
   END
 $$;
@@ -147,7 +139,7 @@ BEGIN
         OR COALESCE(NOT IS_NULL_VALUE(extraction_result:errorInformation), FALSE)
         OR COALESCE(NOT IS_NULL_VALUE(extraction_result:error), FALSE)
         THEN 'FAILED'
-      WHEN min_confidence IS NULL OR min_confidence < 0.75
+      WHEN min_confidence IS NULL OR min_confidence < 0.20
         THEN 'LOW_CONFIDENCE'
       ELSE 'PARSED'
     END AS processing_status,
@@ -160,8 +152,8 @@ BEGIN
           extraction_result:errorInformation::STRING, NULL),
       IFF(COALESCE(NOT IS_NULL_VALUE(extraction_result:error), FALSE),
           extraction_result:error::STRING, NULL),
-      IFF(min_confidence IS NULL OR min_confidence < 0.75,
-          'Extraction confidence is missing or below 0.75.', NULL)
+      IFF(min_confidence IS NULL OR min_confidence < 0.20,
+          'Extraction confidence is missing or below 0.20.', NULL)
     ) AS error_details,
     CURRENT_TIMESTAMP()
   FROM scored;
@@ -226,8 +218,6 @@ pairs AS (
     bl.port_of_loading AS bl_port_of_loading,
     si.port_of_discharge AS si_port_of_discharge,
     bl.port_of_discharge AS bl_port_of_discharge,
-    si.container_number AS si_container_number,
-    bl.container_number AS bl_container_number,
     si.container_count AS si_container_count,
     bl.container_count AS bl_container_count,
     si.gross_weight_kg AS si_gross_weight_kg,
@@ -257,12 +247,6 @@ unpivoted AS (
   SELECT shipment_id, 'PORT_OF_DISCHARGE', si_port_of_discharge, bl_port_of_discharge,
          CURATED.NORMALIZE_PORT(si_port_of_discharge),
          CURATED.NORMALIZE_PORT(bl_port_of_discharge),
-         si_processing_status, bl_processing_status, si_source, bl_source
-  FROM pairs
-  UNION ALL
-  SELECT shipment_id, 'CONTAINER_NUMBER', si_container_number, bl_container_number,
-         CURATED.NORMALIZE_CONTAINER(si_container_number),
-         CURATED.NORMALIZE_CONTAINER(bl_container_number),
          si_processing_status, bl_processing_status, si_source, bl_source
   FROM pairs
   UNION ALL

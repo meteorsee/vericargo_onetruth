@@ -95,20 +95,20 @@ LEFT JOIN shipped_30d s
 CREATE OR REPLACE VIEW ANALYTICS.KPI_OVERVIEW AS
 WITH delivery AS (
   SELECT
-    SUM(on_time_delivered_flag) / NULLIF(SUM(delivered_flag), 0)::FLOAT
+    SUM(on_time_delivered_flag)::NUMBER(38,18) / NULLIF(SUM(delivered_flag), 0)::NUMBER(38,18)
       AS on_time_delivery_rate,
     SUM(landed_cost_usd) AS landed_cost_usd
   FROM CURATED.SHIPMENT_METRICS
 ),
 fulfilment AS (
   SELECT
-    SUM(capped_shipped_qty) / NULLIF(SUM(ordered_qty), 0)::FLOAT AS fill_rate
+    SUM(capped_shipped_qty)::NUMBER(38,18) / NULLIF(SUM(ordered_qty), 0)::NUMBER(38,18) AS fill_rate
   FROM CURATED.ORDER_LINE_METRICS
 ),
 inventory AS (
   SELECT
-    SUM(on_hand_qty)
-      / NULLIF(SUM(trailing_30_day_shipped_qty) / 30.0, 0)
+    SUM(on_hand_qty)::NUMBER(38,18)
+      / NULLIF(SUM(trailing_30_day_shipped_qty)::NUMBER(38,18) / 30.0, 0)
       AS days_of_inventory
   FROM CURATED.INVENTORY_METRICS
 )

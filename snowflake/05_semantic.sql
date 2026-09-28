@@ -131,37 +131,37 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       VERIFIED_AT 1790467200
       ONBOARDING_QUESTION TRUE
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
-      SQL 'SELECT on_time_delivery_rate FROM VERICARGO_ONETRUTH.ANALYTICS.KPI_OVERVIEW'
+      SQL 'SELECT SUM(__shipments.on_time_delivered_shipments) / NULLIF(SUM(__shipments.delivered_shipments), 0) AS on_time_delivery_rate FROM __shipments'
     ),
     procurement_otd AS (
       QUESTION 'Procurement: what percentage of delivered supplier shipments met promise?'
       VERIFIED_AT 1790467200
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
-      SQL 'SELECT on_time_delivery_rate FROM VERICARGO_ONETRUTH.ANALYTICS.KPI_OVERVIEW'
+      SQL 'SELECT SUM(__shipments.on_time_delivered_shipments) / NULLIF(SUM(__shipments.delivered_shipments), 0) AS on_time_delivery_rate FROM __shipments'
     ),
     planning_otd AS (
       QUESTION 'Planning: show delivery reliability against promised dates.'
       VERIFIED_AT 1790467200
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
-      SQL 'SELECT on_time_delivery_rate FROM VERICARGO_ONETRUTH.ANALYTICS.KPI_OVERVIEW'
+      SQL 'SELECT SUM(__shipments.on_time_delivered_shipments) / NULLIF(SUM(__shipments.delivered_shipments), 0) AS on_time_delivery_rate FROM __shipments'
     ),
     governed_fill_rate AS (
       QUESTION 'What is the governed order fill rate?'
       VERIFIED_AT 1790467200
       ONBOARDING_QUESTION TRUE
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
-      SQL 'SELECT fill_rate FROM VERICARGO_ONETRUTH.ANALYTICS.KPI_OVERVIEW'
+      SQL 'SELECT SUM(__order_lines.capped_shipped_quantity) / NULLIF(SUM(__order_lines.ordered_quantity), 0) AS fill_rate FROM __order_lines'
     ),
     governed_inventory_days AS (
       QUESTION 'How many days of inventory do we hold?'
       VERIFIED_AT 1790467200
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
-      SQL 'SELECT days_of_inventory FROM VERICARGO_ONETRUTH.ANALYTICS.KPI_OVERVIEW'
+      SQL 'SELECT SUM(__inventory.on_hand_quantity) / NULLIF(SUM(__inventory.trailing_30_day_shipped_quantity) / 30.0, 0) AS days_of_inventory FROM __inventory'
     ),
     governed_landed_cost AS (
       QUESTION 'What is total landed cost in USD?'
       VERIFIED_AT 1790467200
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
-      SQL 'SELECT landed_cost_usd FROM VERICARGO_ONETRUTH.ANALYTICS.KPI_OVERVIEW'
+      SQL 'SELECT SUM(__shipments.landed_cost_amount_usd) AS landed_cost_usd FROM __shipments'
     )
   );

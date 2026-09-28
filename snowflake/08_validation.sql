@@ -102,12 +102,12 @@ SELECT 'metric:on_time_delivery_rate' AS check_name,
 FROM ANALYTICS.KPI_OVERVIEW
 UNION ALL
 SELECT 'metric:fill_rate',
-       IFF(ABS(fill_rate - (590.0 / 610.0)) < 0.000000001, 'PASS', 'FAIL'),
+       IFF(ABS(fill_rate - (590.0::NUMBER(38,18) / 610.0::NUMBER(38,18))) < 0.000000001, 'PASS', 'FAIL'),
        fill_rate::VARCHAR
 FROM ANALYTICS.KPI_OVERVIEW
 UNION ALL
 SELECT 'metric:days_of_inventory',
-       IFF(ABS(days_of_inventory - (1280.0 / (590.0 / 30.0))) < 0.000000001, 'PASS', 'FAIL'),
+       IFF(ABS(days_of_inventory - (1280.0::NUMBER(38,18) / (590.0::NUMBER(38,18) / 30.0::NUMBER(38,18)))) < 0.000000001, 'PASS', 'FAIL'),
        days_of_inventory::VARCHAR
 FROM ANALYTICS.KPI_OVERVIEW
 UNION ALL

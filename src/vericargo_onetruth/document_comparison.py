@@ -20,14 +20,18 @@ FIELDS = (
 
 PORT_ALIASES = {
     "SINGAPORE": "SGSIN",
+    "SINGAPORE PORT": "SGSIN",
     "SGSIN": "SGSIN",
     "PENANG": "MYPEN",
+    "PENANG PORT": "MYPEN",
     "MYPEN": "MYPEN",
     "PORT KLANG": "MYPKG",
+    "KLANG": "MYPKG",
     "MYPKG": "MYPKG",
     "LAEM CHABANG": "THLCH",
     "THLCH": "THLCH",
     "HO CHI MINH CITY": "VNSGN",
+    "HO CHI MINH": "VNSGN",
     "CAT LAI": "VNSGN",
     "VNSGN": "VNSGN",
     "BUSAN": "KRPUS",
