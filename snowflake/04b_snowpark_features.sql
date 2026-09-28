@@ -1,9 +1,34 @@
 USE WAREHOUSE VERICARGO_WH;
 USE DATABASE VERICARGO_ONETRUTH;
 
--- A Snowpark Python transform keeps Python in the governed data path rather than using it
--- only for local fixture generation and the UI. It joins structured shipment state with
--- document outcomes and materializes one auditable risk-feature row per shipment.
+CREATE TABLE IF NOT EXISTS CURATED.RISK_POLICY (
+  POLICY_NAME VARCHAR PRIMARY KEY,
+  DELIVERY_LATE_SCORE NUMBER,
+  DELIVERY_VERY_LATE_DAYS NUMBER,
+  DELIVERY_VERY_LATE_SCORE NUMBER,
+  DOCUMENT_MISMATCH_SCORE NUMBER,
+  DOCUMENT_MISSING_SCORE NUMBER,
+  DOCUMENT_UNRESOLVED_SCORE NUMBER,
+  INVENTORY_LOW_DAYS NUMBER,
+  INVENTORY_LOW_SCORE NUMBER,
+  INVENTORY_WARNING_DAYS NUMBER,
+  INVENTORY_WARNING_SCORE NUMBER,
+  COST_HIGH_RATIO FLOAT,
+  COST_HIGH_SCORE NUMBER,
+  COST_WARNING_RATIO FLOAT,
+  COST_WARNING_SCORE NUMBER,
+  DATA_QUALITY_SCORE NUMBER,
+  UPDATED_AT TIMESTAMP_LTZ
+);
+
+MERGE INTO CURATED.RISK_POLICY target
+USING (SELECT 'MVP_V1' AS policy_name) source
+ON target.policy_name = source.policy_name
+WHEN NOT MATCHED THEN INSERT VALUES (
+  'MVP_V1', 15, 3, 30, 30, 25, 20, 15, 15, 30, 8,
+  1.20, 15, 1.10, 8, 10, CURRENT_TIMESTAMP()
+);
+
 CREATE OR REPLACE PROCEDURE CURATED.REFRESH_SHIPMENT_RISK_FEATURES()
 RETURNS VARCHAR
 LANGUAGE PYTHON
@@ -14,63 +39,77 @@ EXECUTE AS OWNER
 AS
 $$
 from snowflake.snowpark import Session
-from snowflake.snowpark.functions import (
-    coalesce,
-    col,
-    current_timestamp,
-    datediff,
-    lit,
-    max as max_,
-    when,
-)
-from snowflake.snowpark.types import DecimalType
 
 
 def run(session: Session) -> str:
-    shipments = session.table("VERICARGO_ONETRUTH.CURATED.SHIPMENT_METRICS")
-    documents = session.table(
-        "VERICARGO_ONETRUTH.CURATED.DOCUMENT_COMPARISON_SUMMARY"
-    ).select(
-        col("SHIPMENT_ID"),
-        col("OUTCOME").alias("DOCUMENT_OUTCOME"),
-        col("MIN_CONFIDENCE").alias("DOCUMENT_MIN_CONFIDENCE"),
-    )
-    anchor = session.table("VERICARGO_ONETRUTH.RAW.INVENTORY_SNAPSHOTS").agg(
-        max_(col("SNAPSHOT_DATE")).alias("AS_OF_DATE")
-    )
-
-    joined = shipments.join(documents, "SHIPMENT_ID", "left").cross_join(anchor)
-    delivery_days_late = when(
-        col("ACTUAL_DELIVERY_DATE").is_not_null(),
-        datediff("day", col("PROMISED_DELIVERY_DATE"), col("ACTUAL_DELIVERY_DATE")),
-    ).otherwise(datediff("day", col("PROMISED_DELIVERY_DATE"), col("AS_OF_DATE")))
-
-    document_risk = (
-        when(col("DOCUMENT_OUTCOME").isin("UNREADABLE", "AMBIGUOUS"), lit(60))
-        .when(col("DOCUMENT_OUTCOME") == lit("MISSING_DOCUMENT"), lit(50))
-        .when(col("DOCUMENT_OUTCOME") == lit("MISMATCH"), lit(40))
-        .when(col("DOCUMENT_OUTCOME") == lit("NEEDS_REVIEW"), lit(30))
-        .otherwise(lit(0))
-    )
-    delivery_risk = when(delivery_days_late > lit(0), lit(30)).otherwise(lit(0))
-
-    features = joined.select(
-        col("SHIPMENT_ID"),
-        coalesce(col("DOCUMENT_OUTCOME"), lit("NOT_PROCESSED")).alias(
-            "DOCUMENT_OUTCOME"
-        ),
-        col("DOCUMENT_MIN_CONFIDENCE").cast(DecimalType(5, 4)).alias(
-            "DOCUMENT_MIN_CONFIDENCE"
-        ),
-        delivery_days_late.alias("DELIVERY_DAYS_LATE"),
-        (document_risk + delivery_risk).alias("EXCEPTION_RISK_SCORE"),
-        current_timestamp().alias("FEATURE_REFRESHED_AT"),
-    )
-
-    target = "VERICARGO_ONETRUTH.CURATED.SHIPMENT_RISK_FEATURES"
-    features.write.mode("overwrite").save_as_table(target)
-    row_count = session.table(target).count()
-    return f"Materialized {row_count} shipment risk feature row(s)."
+    session.sql("""
+      CREATE OR REPLACE TABLE CURATED.SHIPMENT_RISK_FEATURES AS
+      WITH anchor AS (
+        SELECT MAX(snapshot_date) AS as_of_date FROM RAW.INVENTORY_SNAPSHOTS
+      ), inventory_by_shipment AS (
+        SELECT s.shipment_id, MIN(i.days_of_inventory) AS days_of_inventory
+        FROM RAW.SHIPMENTS s
+        JOIN RAW.ORDERS o ON o.order_id = s.order_id
+        JOIN RAW.ORDER_LINES ol ON ol.order_id = o.order_id
+        LEFT JOIN CURATED.INVENTORY_METRICS i
+          ON i.plant_id = o.plant_id AND i.part_id = ol.part_id
+        GROUP BY s.shipment_id
+      ), prepared AS (
+        SELECT sm.*, d.outcome AS document_outcome,
+          d.outcome_reason AS document_outcome_reason,
+          d.min_confidence AS document_min_confidence,
+          i.days_of_inventory,
+          DATEDIFF('day', sm.promised_delivery_date,
+            COALESCE(sm.actual_delivery_date, a.as_of_date)) AS delivery_days_late,
+          AVG(sm.landed_cost_usd) OVER (
+            PARTITION BY sm.origin_port_code, sm.destination_port_code
+          ) AS route_average_landed_cost,
+          p.*
+        FROM CURATED.SHIPMENT_METRICS sm
+        LEFT JOIN CURATED.DOCUMENT_COMPARISON_SUMMARY d USING (shipment_id)
+        LEFT JOIN inventory_by_shipment i USING (shipment_id)
+        CROSS JOIN anchor a
+        CROSS JOIN CURATED.RISK_POLICY p
+        WHERE p.policy_name = 'MVP_V1'
+      ), scored AS (
+        SELECT *,
+          CASE WHEN delivery_days_late > delivery_very_late_days THEN delivery_very_late_score
+            WHEN delivery_days_late > 0 THEN delivery_late_score ELSE 0 END AS delivery_risk_score,
+          CASE document_outcome WHEN 'MISMATCH' THEN document_mismatch_score
+            WHEN 'MISSING' THEN document_missing_score
+            WHEN 'UNRESOLVED' THEN document_unresolved_score ELSE 0 END AS document_risk_score,
+          CASE WHEN days_of_inventory < inventory_low_days THEN inventory_low_score
+            WHEN days_of_inventory < inventory_warning_days THEN inventory_warning_score ELSE 0 END AS inventory_risk_score,
+          CASE WHEN landed_cost_usd > route_average_landed_cost * cost_high_ratio THEN cost_high_score
+            WHEN landed_cost_usd > route_average_landed_cost * cost_warning_ratio THEN cost_warning_score ELSE 0 END AS cost_risk_score,
+          IFF(document_outcome_reason IN ('PARSE_FAILURE', 'LOW_CONFIDENCE', 'AMBIGUOUS_PAIR'),
+            data_quality_score, 0) AS data_quality_risk_score
+        FROM prepared
+      ), totals AS (
+        SELECT *, LEAST(100, delivery_risk_score + document_risk_score
+          + inventory_risk_score + cost_risk_score + data_quality_risk_score) AS overall_risk_score
+        FROM scored
+      )
+      SELECT shipment_id, document_outcome, document_outcome_reason,
+        document_min_confidence::NUMBER(5,4) AS document_min_confidence,
+        delivery_days_late, days_of_inventory,
+        delivery_risk_score, document_risk_score, inventory_risk_score,
+        cost_risk_score, data_quality_risk_score, overall_risk_score,
+        CASE WHEN overall_risk_score >= 75 THEN 'CRITICAL'
+          WHEN overall_risk_score >= 50 THEN 'HIGH'
+          WHEN overall_risk_score >= 25 THEN 'MEDIUM' ELSE 'LOW' END AS risk_severity,
+        CONCAT_WS('; ',
+          IFF(delivery_risk_score > 0, 'Delivery risk ' || delivery_risk_score, NULL),
+          IFF(document_risk_score > 0, 'Document risk ' || document_risk_score, NULL),
+          IFF(inventory_risk_score > 0, 'Inventory risk ' || inventory_risk_score, NULL),
+          IFF(cost_risk_score > 0, 'Cost risk ' || cost_risk_score, NULL),
+          IFF(data_quality_risk_score > 0, 'Data-quality risk ' || data_quality_risk_score, NULL)
+        ) AS risk_contributors,
+        CURRENT_TIMESTAMP() AS feature_refreshed_at
+      FROM totals
+    """).collect()
+    count = session.table("CURATED.SHIPMENT_RISK_FEATURES").count()
+    return f"Materialized {count} shipment risk feature row(s)."
 $$;
 
 CALL CURATED.REFRESH_SHIPMENT_RISK_FEATURES();

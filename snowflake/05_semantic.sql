@@ -38,6 +38,10 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       PRIMARY KEY (shipment_id)
       WITH SYNONYMS = ('shipment exceptions', 'risk features')
       COMMENT = 'Snowpark-generated delivery and document exception features',
+    exceptions AS ANALYTICS.SHIPMENT_EXCEPTIONS
+      PRIMARY KEY (exception_id)
+      WITH SYNONYMS = ('findings', 'issues', 'alerts')
+      COMMENT = 'Governed operational and document exceptions',
     inventory AS CURATED.INVENTORY_METRICS
       PRIMARY KEY (plant_id, part_id)
       WITH SYNONYMS = ('stock', 'inventory snapshots')
@@ -54,6 +58,7 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
     shipments_to_origin AS shipments (origin_port_code) REFERENCES ports,
     shipments_to_destination AS shipments (destination_port_code) REFERENCES ports,
     risk_to_shipment AS shipment_risk (shipment_id) REFERENCES shipments,
+    exceptions_to_shipment AS exceptions (shipment_id) REFERENCES shipments,
     inventory_to_plant AS inventory (plant_id) REFERENCES plants,
     inventory_to_part AS inventory (part_id) REFERENCES parts
   )
@@ -65,7 +70,12 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
     shipments.landed_cost_amount_usd AS shipments.landed_cost_usd
       COMMENT = 'Product plus freight, duty, insurance, and handling in USD',
     shipment_risk.delivery_days_late AS shipment_risk.delivery_days_late,
-    shipment_risk.exception_risk_score AS shipment_risk.exception_risk_score,
+    shipment_risk.overall_risk_score AS shipment_risk.overall_risk_score,
+    shipment_risk.delivery_risk_score AS shipment_risk.delivery_risk_score,
+    shipment_risk.document_risk_score AS shipment_risk.document_risk_score,
+    shipment_risk.inventory_risk_score AS shipment_risk.inventory_risk_score,
+    shipment_risk.cost_risk_score AS shipment_risk.cost_risk_score,
+    shipment_risk.data_quality_risk_score AS shipment_risk.data_quality_risk_score,
     shipment_risk.document_min_confidence AS shipment_risk.document_min_confidence,
     order_lines.ordered_quantity AS order_lines.ordered_qty,
     order_lines.shipped_quantity AS order_lines.shipped_qty,
@@ -98,7 +108,15 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
     shipments.actual_delivery_date AS shipments.actual_delivery_date,
     shipments.status AS shipments.status,
     shipment_risk.document_outcome AS shipment_risk.document_outcome,
+    shipment_risk.document_outcome_reason AS shipment_risk.document_outcome_reason,
+    shipment_risk.risk_severity AS shipment_risk.risk_severity,
     shipment_risk.feature_refreshed_at AS shipment_risk.feature_refreshed_at,
+    exceptions.exception_id AS exceptions.exception_id,
+    exceptions.exception_category AS exceptions.exception_category,
+    exceptions.exception_type AS exceptions.exception_type,
+    exceptions.severity AS exceptions.severity,
+    exceptions.status AS exceptions.status,
+    exceptions.reason AS exceptions.reason,
     inventory.snapshot_date AS inventory.snapshot_date
   )
   METRICS (
@@ -111,6 +129,18 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       AS SUM(shipments.landed_cost_amount_usd)
       WITH SYNONYMS = ('total landed cost', 'delivered cost')
       COMMENT = 'Product cost plus freight, duty, insurance, and handling; all fixture values are USD',
+    shipments.shipment_count
+      AS COUNT(shipments.shipment_id)
+      WITH SYNONYMS = ('number of shipments', 'loads count')
+      COMMENT = 'Count of shipments at shipment grain',
+    shipments.delayed_shipment_count
+      AS COUNT_IF(shipments.actual_delivery_date > shipments.promised_delivery_date)
+      WITH SYNONYMS = ('late shipments', 'delayed loads')
+      COMMENT = 'Count of shipments later than their promised date',
+    exceptions.exception_count
+      AS COUNT(exceptions.exception_id)
+      WITH SYNONYMS = ('issue count', 'open findings')
+      COMMENT = 'Count of governed operational and document exceptions',
     order_lines.fill_rate
       AS SUM(order_lines.capped_shipped_quantity)
          / NULLIF(SUM(order_lines.ordered_quantity), 0)
@@ -163,5 +193,11 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       VERIFIED_AT 1790467200
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
       SQL 'SELECT SUM(__shipments.landed_cost_amount_usd) AS landed_cost_usd FROM __shipments'
+    ),
+    shipment_exception_counts AS (
+      QUESTION 'How many shipments, delays, and governed exceptions are there?'
+      VERIFIED_AT 1790467200
+      VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
+      SQL 'SELECT COUNT(__shipments.shipment_id) AS shipment_count, COUNT_IF(__shipments.actual_delivery_date > __shipments.promised_delivery_date) AS delayed_shipment_count FROM __shipments'
     )
   );

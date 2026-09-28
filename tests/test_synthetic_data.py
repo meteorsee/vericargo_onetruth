@@ -28,8 +28,12 @@ class SyntheticDataTests(unittest.TestCase):
             outcomes = {row["expected_outcome"] for row in datasets["document_scenarios"]}
             self.assertEqual(
                 outcomes,
-                {"MATCH", "MISMATCH", "MISSING_DOCUMENT", "UNREADABLE", "AMBIGUOUS"},
+                {"MATCH", "MISMATCH", "MISSING", "UNRESOLVED"},
             )
+            reasons = {row["expected_reason"] for row in datasets["document_scenarios"]}
+            self.assertIn("MISSING_DOCUMENT", reasons)
+            self.assertIn("PARSE_FAILURE", reasons)
+            self.assertIn("AMBIGUOUS_PAIR", reasons)
 
     def test_generated_readable_pdfs_have_valid_cross_reference_offsets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

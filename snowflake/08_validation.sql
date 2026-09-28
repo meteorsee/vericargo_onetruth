@@ -88,7 +88,10 @@ SELECT
   IFF(
     COUNT(*) = (SELECT COUNT(*) FROM RAW.SHIPMENTS)
     AND COUNT(DISTINCT shipment_id) = COUNT(*)
-    AND COUNT_IF(exception_risk_score IS NULL) = 0,
+    AND COUNT_IF(overall_risk_score IS NULL) = 0
+    AND COUNT_IF(overall_risk_score <> LEAST(100,
+      delivery_risk_score + document_risk_score + inventory_risk_score
+      + cost_risk_score + data_quality_risk_score)) = 0,
     'PASS',
     'FAIL'
   ) AS result,
@@ -120,16 +123,36 @@ ORDER BY check_name;
 -- The expected test label is never used to derive the actual outcome.
 SELECT
   'document:' || expected.shipment_id AS check_name,
-  IFF(expected.expected_outcome = actual.outcome, 'PASS', 'FAIL') AS result,
-  'expected=' || expected.expected_outcome || ', actual=' || actual.outcome AS details
+  IFF(expected.expected_outcome = actual.outcome
+      AND expected.expected_reason = actual.outcome_reason, 'PASS', 'FAIL') AS result,
+  'expected=' || expected.expected_outcome || '/' || expected.expected_reason
+    || ', actual=' || actual.outcome || '/' || actual.outcome_reason AS details
 FROM RAW.DOCUMENT_SCENARIOS expected
 LEFT JOIN CURATED.DOCUMENT_COMPARISON_SUMMARY actual
   ON actual.shipment_id = expected.shipment_id
 ORDER BY check_name;
 
+-- Application views preserve their declared grain and the demo fixture has both findings.
+SELECT 'app_view:shipment_360_grain' AS check_name,
+  IFF(COUNT(*) = COUNT(DISTINCT shipment_id)
+      AND COUNT(*) = (SELECT COUNT(*) FROM RAW.SHIPMENTS), 'PASS', 'FAIL') AS result,
+  COUNT(*) || ' shipment rows' AS details
+FROM APP.VW_SHIPMENT_360
+UNION ALL
+SELECT 'demo:shp_1002_findings',
+  IFF(COUNT_IF(exception_category = 'DOCUMENT') = 1
+      AND COUNT_IF(exception_category = 'OPERATIONAL') = 1, 'PASS', 'FAIL'),
+  LISTAGG(exception_id, ', ') WITHIN GROUP (ORDER BY exception_id)
+FROM APP.VW_EXCEPTION_DETAIL
+WHERE shipment_id = 'SHP-1002';
+
 -- Guardrail proof: this must return BLOCKED and must not insert a row.
+CREATE OR REPLACE TEMPORARY TABLE APP.VALIDATION_REVIEW_COUNT AS
+SELECT COUNT(*) AS row_count FROM APP.REVIEW_CASES;
+
 CALL APP.CREATE_REVIEW_CASE(
   'SHP-1002',
+  ARRAY_CONSTRUCT('DOC-SHP-1002', 'DELIVERY-SHP-1002'),
   'Draft bill of lading conflicts with shipping instructions.',
   'HIGH',
   FALSE,
@@ -137,3 +160,8 @@ CALL APP.CREATE_REVIEW_CASE(
 );
 
 SELECT * FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+
+SELECT 'guardrail:cancel_writes_nothing' AS check_name,
+  IFF((SELECT row_count FROM APP.VALIDATION_REVIEW_COUNT) = COUNT(*), 'PASS', 'FAIL') AS result,
+  COUNT(*) || ' review rows after blocked call' AS details
+FROM APP.REVIEW_CASES;

@@ -35,6 +35,12 @@ class DocumentComparisonTests(unittest.TestCase):
         draft = {"port_of_discharge": "THLCH", "gross_weight": None}
         self.assertEqual(compare_documents(si, draft)["overall_status"], "MISMATCH")
 
+    def test_missing_and_unreadable_values_are_standardized(self) -> None:
+        missing = compare_documents({"gross_weight": None}, {"gross_weight": "10 KG"})
+        self.assertEqual(missing["fields"]["gross_weight"]["status"], "MISSING")
+        unreadable = compare_documents({"gross_weight": "not legible"}, {"gross_weight": "10 KG"})
+        self.assertEqual(unreadable["fields"]["gross_weight"]["status"], "UNRESOLVED")
+
 
 if __name__ == "__main__":
     unittest.main()

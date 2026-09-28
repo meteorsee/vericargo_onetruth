@@ -32,8 +32,8 @@ delivery rate, fill rate, days of inventory, and USD landed cost.
 - Snowpark Python transformation for joined delivery/document risk features
 - `AI_PARSE_DOCUMENT` plus scored `AI_EXTRACT`, deterministic comparison, and safe failure
 - Native `SUPPLY_CHAIN_SEMANTIC_VIEW` with synonyms and verified questions
-- `VERICARGO_AGENT`: Cortex Analyst + Cortex Search + guarded stored-procedure action
-- Streamlit KPI, copilot, evidence, and human-review experience
+- `VERICARGO_AGENT`: Cortex Analyst + Cortex Search + non-mutating review proposal
+- Six connected Streamlit pages with persistent shipment context and guarded review writes
 
 ## Slide 5 - One metric, three personas
 

@@ -6,6 +6,11 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 ALLOWED_SEVERITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+LEGAL_TRANSITIONS = {
+    "PENDING": {"IN_REVIEW", "REJECTED"},
+    "IN_REVIEW": {"RESOLVED", "REJECTED"},
+}
+TERMINAL_STATUSES = {"RESOLVED", "REJECTED"}
 
 
 class ReviewValidationError(ValueError):
@@ -52,4 +57,34 @@ def validate_review_case(
         confirmed=True,
         source_question=source_question,
     )
+
+
+def validate_case_transition(
+    current_status: str,
+    new_status: str,
+    resolution_note: str = "",
+) -> tuple[str, str]:
+    """Validate the state machine shared by SQL and local workflow tests."""
+
+    current = current_status.strip().upper()
+    target = new_status.strip().upper()
+    if target not in LEGAL_TRANSITIONS.get(current, set()):
+        raise ReviewValidationError(f"Illegal transition: {current} -> {target}.")
+    note = resolution_note.strip()
+    if target in TERMINAL_STATUSES and len(note) < 5:
+        raise ReviewValidationError("A resolution note is required for terminal states.")
+    return target, note
+
+
+def ensure_no_active_duplicate(
+    shipment_id: str,
+    active_shipment_ids: Collection[str],
+) -> str:
+    """Reject a second pending/in-review case for the same shipment."""
+
+    normalized = shipment_id.strip().upper()
+    active = {value.strip().upper() for value in active_shipment_ids}
+    if normalized in active:
+        raise ReviewValidationError("An active case already exists for this shipment.")
+    return normalized
 

@@ -14,8 +14,9 @@ The working MVP contains:
 - dynamic-table pipelines, a Snowpark shipment-risk transform, and four canonical metrics;
 - SI versus Draft BL parsing, extraction, normalization, comparison, and exception routing;
 - `SUPPLY_CHAIN_SEMANTIC_VIEW` with verified persona questions;
-- `VERICARGO_AGENT` combining Cortex Analyst, Cortex Search, and a guarded review action;
-- a Streamlit control tower and human-review queue;
+- `VERICARGO_AGENT` combining Cortex Analyst, Cortex Search, and a non-mutating review proposal tool;
+- a six-page connected Streamlit control tower with persistent shipment context;
+- explicit review confirmation, exception links, legal state transitions, and append-only audit;
 - a daily exception digest implemented as a Snowflake Task, plus a CoCo automation prompt;
 - local unit tests and in-Snowflake validation queries.
 
@@ -97,6 +98,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy.ps1 `
 The helper is intentionally explicit: it stops on the first failed Snowflake command and
 does not hide partially deployed state. Run it from CoCo so execution evidence is captured.
 
+For external-browser OAuth environments that cannot cache credentials between Snow CLI
+processes, the equivalent one-login data-layer deployment is:
+
+```powershell
+python .\scripts\deploy_live.py --connection YOUR_REAL_CONNECTION_NAME
+```
+
+Use `--start-at 06b_application_views.sql` to resume safely after a repaired step, and
+`--only 09_agent_smoke_tests.sql` or `--only 10_workflow_smoke_tests.sql` for the optional
+Cortex and mutating workflow acceptance suites.
+
 To deploy step-by-step instead, run the SQL files in numeric order. Upload generated CSVs
 to `@VERICARGO_ONETRUTH.RAW.CSV_STAGE`, upload documents to
 `@VERICARGO_ONETRUTH.RAW.DOCUMENT_STAGE`, and run `02_load.sql` after both uploads.
@@ -123,8 +135,10 @@ Then ask:
 
 > Why is shipment SHP-1002 an exception? Cite the shipping-document evidence.
 
-Create a review case only after explicitly confirming the shipment, reason, and severity.
-The stored procedure independently blocks unconfirmed actions and unknown shipment IDs.
+The agent can propose but cannot create a review case. Create one only after explicitly
+confirming the shipment, linked exceptions, reason, and severity in Streamlit. The stored
+procedure independently blocks unconfirmed actions, unknown IDs, duplicates, and illegal
+state transitions.
 
 ## Repository map
 

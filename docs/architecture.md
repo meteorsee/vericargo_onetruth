@@ -22,9 +22,11 @@ flowchart LR
   X --> CS[Cortex Search]
   SV --> A[VERICARGO_AGENT]
   CS --> A
-  A --> UI[Streamlit control tower]
+  A -->|answer + non-mutating proposal| UI[Six-page Streamlit control tower]
   UI -->|explicit confirmation| T[CREATE_REVIEW_CASE]
-  T --> Q[Human-review queue and audit trail]
+  T --> Q[Review queue + exception links]
+  Q --> U[UPDATE_REVIEW_CASE]
+  U --> AU[Append-only audit history]
 ```
 
 ## Canonical metrics

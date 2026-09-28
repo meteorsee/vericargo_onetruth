@@ -169,16 +169,16 @@
     <rect x="1315" y="354" width="195" height="92" rx="14" fill="#fff" stroke="#dbe3ec"/>
     <rect x="1315" y="354" width="195" height="10" rx="5" fill="#f28c28"/>
     <text x="1335" y="395" class="node-title">Streamlit</text>
-    <text x="1335" y="418" class="node-copy">Control tower · chat · evidence</text>
-    <text x="1335" y="436" class="node-copy">KPI overview · review queue</text>
+    <text x="1335" y="418" class="node-copy">Tower · Shipment 360 · evidence</text>
+    <text x="1335" y="436" class="node-copy">Copilot · review · governance</text>
 
     <rect x="1315" y="504" width="195" height="72" rx="14" fill="#edf5ff" stroke="#79abe0"/>
-    <text x="1334" y="533" class="tech">CREATE_REVIEW_CASE</text>
-    <text x="1334" y="556" class="node-copy">Guarded custom action</text>
+    <text x="1334" y="533" class="tech">PROPOSE → CONFIRM</text>
+    <text x="1334" y="556" class="node-copy">UI-owned guarded mutation</text>
 
     <rect x="1315" y="623" width="195" height="62" rx="14" fill="#eef8f4" stroke="#82c7ac"/>
     <text x="1334" y="650" class="node-title">Human review</text>
-    <text x="1334" y="672" class="node-copy">Queue + immutable audit trail</text>
+    <text x="1334" y="672" class="node-copy">State + exception links + audit</text>
   </g>
 
   <!-- Flow connectors -->

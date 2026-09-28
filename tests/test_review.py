@@ -4,6 +4,8 @@ from vericargo_onetruth.review import (
     ReviewCaseRequest,
     ReviewNotConfirmed,
     ReviewValidationError,
+    ensure_no_active_duplicate,
+    validate_case_transition,
     validate_review_case,
 )
 
@@ -28,6 +30,23 @@ class ReviewGuardrailTests(unittest.TestCase):
         self.assertEqual(validated.shipment_id, "SHP-1002")
         self.assertEqual(validated.severity, "HIGH")
         self.assertEqual(validated.reason, "Port mismatch")
+
+    def test_duplicate_active_case_is_rejected(self) -> None:
+        with self.assertRaises(ReviewValidationError):
+            ensure_no_active_duplicate("shp-1002", {"SHP-1002"})
+
+    def test_legal_review_transitions(self) -> None:
+        self.assertEqual(validate_case_transition("PENDING", "IN_REVIEW"), ("IN_REVIEW", ""))
+        self.assertEqual(
+            validate_case_transition("IN_REVIEW", "RESOLVED", "Documents corrected."),
+            ("RESOLVED", "Documents corrected."),
+        )
+
+    def test_illegal_transition_and_missing_resolution_are_rejected(self) -> None:
+        with self.assertRaises(ReviewValidationError):
+            validate_case_transition("PENDING", "RESOLVED", "Skipped review")
+        with self.assertRaises(ReviewValidationError):
+            validate_case_transition("IN_REVIEW", "REJECTED", "")
 
 
 if __name__ == "__main__":

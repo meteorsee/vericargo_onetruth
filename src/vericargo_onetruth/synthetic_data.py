@@ -104,12 +104,12 @@ LANDED_COSTS = [
 ]
 
 DOCUMENT_SCENARIOS = [
-    {"shipment_id": "SHP-1001", "expected_outcome": "MATCH"},
-    {"shipment_id": "SHP-1002", "expected_outcome": "MISMATCH"},
-    {"shipment_id": "SHP-1003", "expected_outcome": "MISSING_DOCUMENT"},
-    {"shipment_id": "SHP-1004", "expected_outcome": "UNREADABLE"},
-    {"shipment_id": "SHP-1005", "expected_outcome": "MATCH"},
-    {"shipment_id": "SHP-1006", "expected_outcome": "AMBIGUOUS"},
+    {"shipment_id": "SHP-1001", "expected_outcome": "MATCH", "expected_reason": "COMPLETE_MATCH"},
+    {"shipment_id": "SHP-1002", "expected_outcome": "MISMATCH", "expected_reason": "FIELD_MISMATCH"},
+    {"shipment_id": "SHP-1003", "expected_outcome": "MISSING", "expected_reason": "MISSING_DOCUMENT"},
+    {"shipment_id": "SHP-1004", "expected_outcome": "UNRESOLVED", "expected_reason": "PARSE_FAILURE"},
+    {"shipment_id": "SHP-1005", "expected_outcome": "MATCH", "expected_reason": "COMPLETE_MATCH"},
+    {"shipment_id": "SHP-1006", "expected_outcome": "UNRESOLVED", "expected_reason": "AMBIGUOUS_PAIR"},
 ]
 
 

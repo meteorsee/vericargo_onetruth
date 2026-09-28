@@ -101,7 +101,7 @@ def compare_value(field: str, left: Any, right: Any) -> str:
     left_normalized = normalize_field(field, left)
     right_normalized = normalize_field(field, right)
     if left_normalized is None or right_normalized is None:
-        return "UNRESOLVED"
+        return "MISSING" if left is None or right is None else "UNRESOLVED"
     if field == "gross_weight":
         left_weight = Decimal(left_normalized)
         right_weight = Decimal(right_normalized)
@@ -126,8 +126,14 @@ def compare_documents(
             "status": compare_value(field, left, right),
         }
     statuses = {result["status"] for result in fields.values()}
-    overall = "MISMATCH" if "MISMATCH" in statuses else (
-        "NEEDS_REVIEW" if "UNRESOLVED" in statuses else "MATCH"
+    overall = (
+        "MISMATCH"
+        if "MISMATCH" in statuses
+        else "UNRESOLVED"
+        if "UNRESOLVED" in statuses
+        else "MISSING"
+        if "MISSING" in statuses
+        else "MATCH"
     )
     return {"overall_status": overall, "fields": fields}
 

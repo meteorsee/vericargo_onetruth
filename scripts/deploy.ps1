@@ -80,6 +80,7 @@ foreach ($fileName in @(
     '04b_snowpark_features.sql',
     '05_semantic.sql',
     '06_actions_and_agent.sql',
+    '06b_application_views.sql',
     '07_automation.sql',
     '08_validation.sql'
 )) {

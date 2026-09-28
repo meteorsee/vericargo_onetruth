@@ -17,9 +17,11 @@ class RepositoryContractTests(unittest.TestCase):
             "04b_snowpark_features.sql",
             "05_semantic.sql",
             "06_actions_and_agent.sql",
+            "06b_application_views.sql",
             "07_automation.sql",
             "08_validation.sql",
             "09_agent_smoke_tests.sql",
+            "10_workflow_smoke_tests.sql",
         }
         actual = {path.name for path in (ROOT / "snowflake").glob("*.sql")}
         self.assertEqual(expected, actual)
@@ -29,6 +31,7 @@ class RepositoryContractTests(unittest.TestCase):
         action_sql = (ROOT / "snowflake" / "06_actions_and_agent.sql").read_text()
         document_sql = (ROOT / "snowflake" / "04_documents.sql").read_text()
         snowpark_sql = (ROOT / "snowflake" / "04b_snowpark_features.sql").read_text()
+        application_sql = (ROOT / "snowflake" / "06b_application_views.sql").read_text()
 
         for metric in (
             "on_time_delivery_rate",
@@ -43,11 +46,22 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("AI_EXTRACT", document_sql)
         self.assertIn("snowflake.snowpark", snowpark_sql)
         self.assertIn("SHIPMENT_RISK_FEATURES", snowpark_sql)
+        for view in (
+            "VW_CONTROL_TOWER",
+            "VW_SHIPMENT_360",
+            "VW_SHIPMENT_TIMELINE",
+            "VW_DOCUMENT_COMPARISON",
+            "VW_EXCEPTION_DETAIL",
+            "VW_REVIEW_QUEUE",
+            "VW_AUDIT_HISTORY",
+            "VW_GOVERNANCE_STATUS",
+        ):
+            self.assertIn(view, application_sql)
 
     def test_hackathon_repo_does_not_import_extension_runtime(self) -> None:
         source_files = list((ROOT / "src").rglob("*.py")) + list((ROOT / "app").rglob("*.py"))
         for path in source_files:
-            self.assertNotIn("vericargo_extension", path.read_text().lower())
+            self.assertNotIn("vericargo_extension", path.read_text(encoding="utf-8").lower())
 
     def test_embedded_snowpark_handler_compiles(self) -> None:
         sql = (ROOT / "snowflake" / "04b_snowpark_features.sql").read_text()

@@ -165,6 +165,10 @@ BEGIN
 END;
 $$;
 
+-- Refresh the persisted processing result before any downstream evidence,
+-- comparison, exception, search, or risk object is materialized.
+CALL CURATED.PROCESS_DOCUMENTS();
+
 CREATE OR REPLACE VIEW CURATED.DOCUMENT_CARDINALITY AS
 SELECT
   s.shipment_id,
@@ -198,6 +202,47 @@ SELECT
   GET(COALESCE(extraction_result:response, extraction_result), 'marks_and_numbers')::STRING
     AS marks_and_numbers
 FROM CURATED.DOCUMENT_PROCESSING;
+
+CREATE TABLE IF NOT EXISTS CURATED.DOCUMENT_FIELD_EVIDENCE (
+  DOCUMENT_ID VARCHAR NOT NULL,
+  SHIPMENT_ID VARCHAR NOT NULL,
+  DOCUMENT_TYPE VARCHAR NOT NULL,
+  FIELD_NAME VARCHAR NOT NULL,
+  RAW_VALUE VARCHAR,
+  NORMALIZED_VALUE VARCHAR,
+  CONFIDENCE FLOAT,
+  SOURCE_FILE VARCHAR NOT NULL,
+  SOURCE_LOCATION VARCHAR,
+  PROCESSING_STATUS VARCHAR NOT NULL,
+  ERROR_DETAILS VARCHAR,
+  RECORDED_AT TIMESTAMP_LTZ NOT NULL
+);
+
+TRUNCATE TABLE CURATED.DOCUMENT_FIELD_EVIDENCE;
+INSERT INTO CURATED.DOCUMENT_FIELD_EVIDENCE
+WITH fields AS (
+  SELECT document_id, shipment_id, document_type,
+    field_values.key::VARCHAR AS field_name,
+    field_values.value::VARCHAR AS raw_value,
+    min_confidence, relative_path, processing_status, error_details
+  FROM CURATED.DOCUMENT_FIELDS,
+  LATERAL FLATTEN(INPUT => OBJECT_CONSTRUCT_KEEP_NULL(
+    'CONSIGNEE', consignee,
+    'PORT_OF_LOADING', port_of_loading,
+    'PORT_OF_DISCHARGE', port_of_discharge,
+    'CONTAINER_COUNT', container_count,
+    'GROSS_WEIGHT_KG', gross_weight_kg,
+    'MARKS_AND_NUMBERS', marks_and_numbers
+  )) field_values
+)
+SELECT document_id, shipment_id, document_type, field_name, raw_value,
+  CASE
+    WHEN field_name IN ('PORT_OF_LOADING', 'PORT_OF_DISCHARGE') THEN CURATED.NORMALIZE_PORT(raw_value)
+    WHEN field_name IN ('CONTAINER_COUNT', 'GROSS_WEIGHT_KG') THEN CURATED.NORMALIZE_NUMBER(raw_value)::VARCHAR
+    ELSE CURATED.NORMALIZE_TEXT(raw_value)
+  END,
+  min_confidence, relative_path, NULL, processing_status, error_details, CURRENT_TIMESTAMP()
+FROM fields;
 
 CREATE OR REPLACE VIEW CURATED.DOCUMENT_FIELD_COMPARISONS AS
 WITH eligible AS (
@@ -277,9 +322,9 @@ SELECT
   normalized_bl,
   CASE
     WHEN si_processing_status <> 'PARSED' OR bl_processing_status <> 'PARSED'
-      THEN 'NEEDS_REVIEW'
+      THEN 'UNRESOLVED'
     WHEN normalized_si IS NULL OR normalized_bl IS NULL
-      THEN 'NEEDS_REVIEW'
+      THEN 'MISSING'
     WHEN field_name = 'GROSS_WEIGHT_KG'
       AND ABS(normalized_si::NUMBER(18, 3) - normalized_bl::NUMBER(18, 3))
         <= GREATEST(0.5, normalized_si::NUMBER(18, 3) * 0.001)
@@ -305,7 +350,8 @@ comparisons AS (
   SELECT
     shipment_id,
     COUNT_IF(comparison_status = 'MISMATCH') AS mismatch_count,
-    COUNT_IF(comparison_status = 'NEEDS_REVIEW') AS unresolved_count
+    COUNT_IF(comparison_status = 'UNRESOLVED') AS unresolved_count,
+    COUNT_IF(comparison_status = 'MISSING') AS missing_count
   FROM CURATED.DOCUMENT_FIELD_COMPARISONS
   GROUP BY shipment_id
 )
@@ -314,14 +360,25 @@ SELECT
   c.si_count,
   c.bl_count,
   CASE
-    WHEN c.si_count = 0 OR c.bl_count = 0 THEN 'MISSING_DOCUMENT'
-    WHEN c.si_count > 1 OR c.bl_count > 1 THEN 'AMBIGUOUS'
-    WHEN COALESCE(p.failed_count, 0) > 0 THEN 'UNREADABLE'
+    WHEN c.si_count = 0 OR c.bl_count = 0 THEN 'MISSING'
+    WHEN c.si_count > 1 OR c.bl_count > 1 THEN 'UNRESOLVED'
+    WHEN COALESCE(p.failed_count, 0) > 0 THEN 'UNRESOLVED'
     WHEN COALESCE(x.mismatch_count, 0) > 0 THEN 'MISMATCH'
-    WHEN COALESCE(x.unresolved_count, 0) > 0 THEN 'NEEDS_REVIEW'
+    WHEN COALESCE(x.unresolved_count, 0) > 0 THEN 'UNRESOLVED'
+    WHEN COALESCE(x.missing_count, 0) > 0 THEN 'MISSING'
     ELSE 'MATCH'
   END AS outcome,
+  CASE
+    WHEN c.si_count = 0 OR c.bl_count = 0 THEN 'MISSING_DOCUMENT'
+    WHEN c.si_count > 1 OR c.bl_count > 1 THEN 'AMBIGUOUS_PAIR'
+    WHEN COALESCE(p.failed_count, 0) > 0 THEN 'PARSE_FAILURE'
+    WHEN COALESCE(x.mismatch_count, 0) > 0 THEN 'FIELD_MISMATCH'
+    WHEN COALESCE(x.unresolved_count, 0) > 0 THEN 'LOW_CONFIDENCE'
+    WHEN COALESCE(x.missing_count, 0) > 0 THEN 'MISSING_FIELD'
+    ELSE 'COMPLETE_MATCH'
+  END AS outcome_reason,
   COALESCE(x.mismatch_count, 0) AS mismatch_count,
+  COALESCE(x.missing_count, 0) AS missing_count,
   COALESCE(x.unresolved_count, 0) AS unresolved_count,
   p.min_confidence,
   p.error_details
@@ -335,6 +392,7 @@ SELECT
   shipment_id,
   document_type,
   relative_path,
+  NULL::VARCHAR AS source_location,
   processing_status,
   min_confidence,
   CONCAT(
@@ -352,9 +410,15 @@ CREATE OR REPLACE VIEW ANALYTICS.SHIPMENT_EXCEPTIONS AS
 SELECT
   'DOC-' || shipment_id AS exception_id,
   shipment_id,
-  'DOCUMENT' AS exception_type,
-  IFF(outcome IN ('UNREADABLE', 'AMBIGUOUS'), 'HIGH', 'MEDIUM') AS severity,
-  outcome AS reason,
+  'DOCUMENT_' || outcome_reason AS exception_type,
+  'DOCUMENT' AS exception_category,
+  IFF(outcome = 'UNRESOLVED', 'HIGH', 'MEDIUM') AS severity,
+  'OPEN' AS status,
+  outcome_reason AS reason,
+  'Document comparison outcome: ' || outcome || ' (' || outcome_reason || ')' AS description,
+  'DOCUMENT_COMPARISON_SUMMARY' AS source_type,
+  shipment_id AS source_reference,
+  TRUE AS evidence_required,
   error_details,
   CURRENT_TIMESTAMP() AS detected_at
 FROM CURATED.DOCUMENT_COMPARISON_SUMMARY
@@ -363,13 +427,17 @@ UNION ALL
 SELECT
   'DELIVERY-' || shipment_id,
   shipment_id,
-  'DELIVERY',
+  'DELIVERY_DELAY',
+  'OPERATIONAL',
   IFF(status = 'IN_TRANSIT', 'HIGH', 'MEDIUM'),
+  'OPEN',
   IFF(status = 'IN_TRANSIT', 'PAST_PROMISE_DATE', 'DELIVERED_LATE'),
+  'Shipment missed its governed promised-delivery date.',
+  'SHIPMENT_METRICS',
+  shipment_id,
+  FALSE,
   NULL,
   CURRENT_TIMESTAMP()
 FROM CURATED.SHIPMENT_METRICS
 WHERE (status = 'DELIVERED' AND actual_delivery_date > promised_delivery_date)
    OR (status <> 'DELIVERED' AND promised_delivery_date < CURRENT_DATE());
-
-CALL CURATED.PROCESS_DOCUMENTS();
