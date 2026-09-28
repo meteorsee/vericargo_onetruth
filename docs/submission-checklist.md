@@ -20,12 +20,12 @@ the independently implemented Snowflake solution.
 
 ## CoCo lifecycle
 
-- [ ] Start standard-mode CoCo with `--plan` from a clean baseline.
-- [ ] Record and approve the architecture plan in CoCo.
+- [x] Start standard-mode CoCo with `--plan` from a clean baseline.
+- [x] Record and approve the architecture plan in CoCo.
 - [ ] Invoke `vericargo-supply-chain-governance` and retain the transcript.
-- [ ] Have CoCo review and materially revise the scaffold.
-- [ ] Run generation, deployment, and validation through CoCo.
-- [ ] Capture one real failed-then-fixed example.
+- [x] Have CoCo review and materially revise the scaffold.
+- [x] Run generation, deployment, and validation through CoCo.
+- [x] Capture one real failed-then-fixed example.
 - [ ] Run the four agent smoke tests and retain response/query IDs.
 - [ ] Create, execute, and inspect the hosted CoCo digest automation.
 - [ ] Complete every field in `COCO_USAGE.md` with real evidence.
@@ -33,15 +33,15 @@ the independently implemented Snowflake solution.
 ## Product acceptance
 
 - [ ] Snowflake deployment completes from a clean database.
-- [ ] All FK and duplicate-key checks pass.
-- [ ] Four governed metrics match independent fixtures.
+- [x] All FK and duplicate-key checks pass.
+- [x] Four governed metrics match independent fixtures.
 - [ ] Three persona versions of OTD return the same definition and value.
-- [ ] Match, mismatch, missing, unreadable, ambiguous, and low-confidence cases route safely.
+- [x] Match, mismatch, missing, unreadable, ambiguous, and low-confidence cases route safely.
 - [ ] Document answers cite source filenames.
 - [ ] Unconfirmed and unknown-shipment actions are blocked.
 - [ ] Confirmed action records the complete audit trail.
 - [ ] Streamlit completes staged-file -> chat -> review-case flow.
-- [ ] Secrets scan is clean and only synthetic data is committed.
+- [x] Secrets scan is clean and only synthetic data is committed.
 
 ## Submission package - internal deadline October 4, 8:00 PM MYT
 
@@ -50,6 +50,6 @@ the independently implemented Snowflake solution.
 - [ ] Working Streamlit URL tested with judge permissions.
 - [ ] Deck completed from `docs/submission-deck.md`.
 - [ ] Demo recorded and timed to four minutes.
-- [ ] `BACKGROUND_IP.md` and `DATASETS.md` included in the submission.
+- [x] `BACKGROUND_IP.md` and `DATASETS.md` included in the submission.
 - [ ] Final commit/tag created before the internal deadline.
 - [ ] Submission form confirmation saved outside the repository.
