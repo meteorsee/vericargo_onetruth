@@ -120,8 +120,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   .\scripts\create_coco_automation.ps1 -Connection YOUR_REAL_CONNECTION_NAME
 ```
 
-Run it once manually, inspect its transcript with `cortex automation doctor`, and record
-the real run/query ID. `07_automation.sql` also installs a Snowflake Task fallback.
+If the installed CoCo build exposes hosted Automations, run it once manually, inspect its
+transcript with `cortex automation doctor`, and record the real run/query ID. If the trial
+account cannot reach or authorize the Automations endpoint, record the real error and use
+the Snowflake Task installed by `07_automation.sql`; do not enable an experimental feature
+flag only for the submission demo.
+
+The fallback can be exercised without changing its schedule:
+
+```sql
+EXECUTE TASK VERICARGO_ONETRUTH.APP.DAILY_EXCEPTION_DIGEST;
+SELECT *
+FROM VERICARGO_ONETRUTH.APP.EXCEPTION_DIGEST_RUNS
+ORDER BY RUN_AT DESC
+LIMIT 1;
+```
 
 ## 4. Exercise the demo
 
@@ -162,4 +175,6 @@ and ensure judges can access the repository and deployed Streamlit application.
 
 Use [`docs/submission-checklist.md`](docs/submission-checklist.md) for the hard gates and
 [`docs/submission-deck.md`](docs/submission-deck.md) for the judge-facing English deck copy.
+The latest executed checks are in [`docs/test-results.md`](docs/test-results.md), and the
+private account handoff steps are in [`docs/judge-access.md`](docs/judge-access.md).
 

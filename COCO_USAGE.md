@@ -1,8 +1,8 @@
 # CoCo lifecycle evidence ledger
 
 This file is a checklist and index. Never invent session IDs, screenshots, query IDs, or
-claims. Replace each `PENDING` entry only after the action actually occurs in Snowflake
-CoCo CLI or Desktop.
+claims. Unavailable and optional evidence is labelled explicitly instead of being presented
+as completed work.
 
 ## Opening planning prompt
 
@@ -84,11 +84,54 @@ review, Streamlit integration, and least-privilege action-tool review.
 
 ## Ingenuity evidence
 
-- Reusable project skill invocation: file exists at `.snowflake/cortex/skills/vericargo-supply-chain-governance/SKILL.md`; its invariants were applied during this session's review (governance skill content read and enforced for the port alias fix)
-- CoCo automation name/run ID: PENDING (run `create_coco_automation.ps1` next)
-- Fallback Snowflake Task run ID: `APP.DAILY_EXCEPTION_DIGEST` deployed and resumed
+- Reusable project skill invocation: explicitly invoked in CoCo session
+  `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`; the skill audited the deployed solution in
+  read-only mode against its ontology, metric, evidence, guardrail, and audit invariants.
+- Hosted CoCo automation: UNAVAILABLE in the current trial environment. On 2026-09-29,
+  `create_coco_automation.ps1` returned: "Could not confirm whether automations are enabled
+  for this account (the Cortex Agent endpoint was unreachable)." No experimental feature
+  flag was enabled for the submission build.
+- Fallback Snowflake Task: `APP.DAILY_EXCEPTION_DIGEST` is started. A manual execution
+  succeeded with query ID `01c762ea-3203-7595-0018-686a000af0c6` and produced: "7 open
+  exception(s), 3 high/critical, 0 pending human-review case(s)."
 - Guarded review-case action proof: query `01c75ef1-3203-7356-0018-686a0006f18a` — `CREATE_REVIEW_CASE` with `P_CONFIRMED=FALSE` returned `BLOCKED`
-- Cross-surface demonstration: PENDING
+- Cross-surface demonstration: NOT RUN (optional bonus; excluded from the frozen scope)
+
+## Submission acceptance - 2026-09-29
+
+- CoCo surface: CLI, resumed session
+- Session ID/title: `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`
+  (`Submission acceptance 2026-09-29`)
+- Fresh Snowflake validation: 28/28 checks PASS
+  - Foreign keys: `01c76055-3203-73ca-0018-686a00085612`
+  - Duplicate keys: `01c76055-3203-73ca-0018-686a00085616`
+  - Shipment risk grain: `01c76055-3203-7366-0018-686a00081536`
+  - Canonical KPIs: `01c76055-3203-73c7-0018-686a000833b6`
+  - Document outcomes: `01c76055-3203-73ca-0018-686a0008561a`
+  - Application views and `SHP-1002`: `01c76055-3203-7357-0018-686a000804b2`
+- Agent acceptance:
+  - Operations OTD: `01c76057-3203-7366-0018-686a0008153e`
+  - Procurement OTD: `01c76057-3203-73c7-0018-686a000833be`
+  - Planning OTD: `01c76058-3203-7357-0018-686a000804be`
+  - `SHP-1002` combined evidence: `01c76058-3203-73c7-0018-686a000833d2`
+  - Unsupported metric / unknown shipment fallback:
+    `01c7605e-3203-7366-0018-686a00081596`
+  - All three persona questions returned 60% (3 of 5 delivered shipments), shipment grain,
+    and the governed all-delivered window. The combined answer cited
+    `doc-shp-1002-si.pdf` and `doc-shp-1002-bl.pdf` and made no write.
+- Review workflow acceptance:
+  - Main workflow block: `01c76060-3203-73c7-0018-686a00083422`
+  - Case details: `01c76061-3203-7366-0018-686a000815d2`
+  - Exception links: `01c76061-3203-7366-0018-686a000815da`
+  - Audit events: `01c76061-3203-7357-0018-686a000804e6`
+  - Result: `RC-000201` resolved; two linked exceptions; duplicate active case rejected;
+    three audit events for creation, review start, and resolution.
+- Streamlit acceptance: `snow streamlit execute
+  VERICARGO_ONETRUTH.APP.VERICARGO_ONETRUTH_APP -c <private_connection_name>` completed
+  successfully. The local connection alias is intentionally redacted from this public ledger.
+- Full destructive redeployment: NOT RUN. The helper truncates deployed tables and would
+  overwrite live review/audit evidence. The validated live deployment was preserved; a
+  clean-database redeployment remains a pre-freeze rehearsal requiring explicit approval.
 
 Create the hosted read-only digest only after the core objects validate:
 

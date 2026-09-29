@@ -41,7 +41,11 @@ def execute_file(connection, filename: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--connection", default="EL85412")
+    parser.add_argument(
+        "--connection",
+        required=True,
+        help="Name of a Snow CLI connection configured outside this repository.",
+    )
     parser.add_argument("--start-at", choices=SQL_FILES, default=SQL_FILES[0])
     parser.add_argument("--only", choices=OPTIONAL_SQL_FILES)
     parser.add_argument("--run-workflow-smoke", action="store_true")

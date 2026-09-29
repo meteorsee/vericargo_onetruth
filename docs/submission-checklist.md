@@ -22,30 +22,33 @@ the independently implemented Snowflake solution.
 
 - [x] Start standard-mode CoCo with `--plan` from a clean baseline.
 - [x] Record and approve the architecture plan in CoCo.
-- [ ] Invoke `vericargo-supply-chain-governance` and retain the transcript.
+- [x] Invoke `vericargo-supply-chain-governance` and retain the transcript.
 - [x] Have CoCo review and materially revise the scaffold.
 - [x] Run generation, deployment, and validation through CoCo.
 - [x] Capture one real failed-then-fixed example.
-- [ ] Run the four agent smoke tests and retain response/query IDs.
-- [ ] Create, execute, and inspect the hosted CoCo digest automation.
-- [ ] Complete every field in `COCO_USAGE.md` with real evidence.
+- [x] Run the four agent smoke tests and retain response/query IDs.
+- [x] Attempt hosted CoCo automation and record the unavailable endpoint; execute and
+  inspect the declared Snowflake Task fallback.
+- [x] Complete every required field in `COCO_USAGE.md` with real evidence; cross-surface
+  demonstration is explicitly optional and not run.
 
 ## Product acceptance
 
 - [ ] Snowflake deployment completes from a clean database.
 - [x] All FK and duplicate-key checks pass.
 - [x] Four governed metrics match independent fixtures.
-- [ ] Three persona versions of OTD return the same definition and value.
+- [x] Three persona versions of OTD return the same definition and value.
 - [x] Match, mismatch, missing, unreadable, ambiguous, and low-confidence cases route safely.
-- [ ] Document answers cite source filenames.
-- [ ] Unconfirmed and unknown-shipment actions are blocked.
-- [ ] Confirmed action records the complete audit trail.
+- [x] Document answers cite source filenames.
+- [x] Unconfirmed and unknown-shipment paths fail safely; local guardrail tests and the
+  Snowflake blocked-write check pass.
+- [x] Confirmed action records the complete audit trail.
 - [ ] Streamlit completes staged-file -> chat -> review-case flow.
 - [x] Secrets scan is clean and only synthetic data is committed.
 
 ## Submission package - internal deadline October 4, 8:00 PM MYT
 
-- [ ] English README and setup instructions reviewed.
+- [x] English README and setup instructions reviewed.
 - [ ] Repository access granted to judges.
 - [ ] Working Streamlit URL tested with judge permissions.
 - [ ] Deck completed from `docs/submission-deck.md`.
