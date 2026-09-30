@@ -6,6 +6,24 @@ The diagram separates the **CoCo-assisted delivery lifecycle** from the **Snowfl
 runtime**. CoCo is used to plan, build, deploy, test, and automate the solution; the
 deployed Snowflake services and Streamlit application handle production execution.
 
+The decision-first UI does not introduce a parallel source of truth. It reads the stable
+`APP.VW_*` contracts and exposes the existing evidence-to-action chain:
+
+```mermaid
+flowchart LR
+  CT[Control Tower Decision Brief] --> SI[Shipment Intelligence]
+  SI --> DE[Document Evidence]
+  DE --> CP[OneTruth Copilot]
+  CP -->|read-only proposal| HC[Human confirmation]
+  HC -->|confirmed write| RQ[Review case]
+  RQ --> AH[Append-only audit]
+  AH --> SI
+```
+
+`selected_shipment_id` keeps the investigation context across these pages. All business
+facts shown in the Decision Brief, visual comparison, persona proof and audit timeline are
+read from existing application views; they are not hard-coded presentation values.
+
 ```mermaid
 flowchart LR
   S[Synthetic ERP, logistics, inventory, cost CSVs] --> R[Snowflake RAW]

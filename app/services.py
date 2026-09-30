@@ -80,10 +80,14 @@ class OneTruthService:
             f"SELECT * FROM {DB}.APP.VW_EXCEPTION_DETAIL ORDER BY detected_at DESC"
         )
 
-    def review_queue(self):
-        return self.frame(
-            f"SELECT * FROM {DB}.APP.VW_REVIEW_QUEUE ORDER BY created_at DESC"
-        )
+    def review_queue(self, shipment_id: str | None = None):
+        if shipment_id:
+            return self.frame(
+                f"SELECT * FROM {DB}.APP.VW_REVIEW_QUEUE "
+                "WHERE shipment_id = ? ORDER BY created_at DESC",
+                [shipment_id],
+            )
+        return self.frame(f"SELECT * FROM {DB}.APP.VW_REVIEW_QUEUE ORDER BY created_at DESC")
 
     def audit_history(self, case_id: str | None = None):
         if case_id:

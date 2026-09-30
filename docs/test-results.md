@@ -1,6 +1,6 @@
 # Acceptance test results
 
-Status date: 2026-09-29 (Asia/Kuala_Lumpur)
+Status date: 2026-09-30 (Asia/Kuala_Lumpur)
 
 This report records only executed checks. Query IDs are Snowflake evidence; the associated
 CoCo transcript is session `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`.
@@ -9,8 +9,9 @@ CoCo transcript is session `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`.
 
 | Area | Result | Evidence |
 |---|---|---|
-| Local unit tests | PASS, 23/23 | `python -m unittest discover -s tests -v` |
-| Repository secret scan | PASS, 83 tracked and unignored files scanned | `scripts/scan_secrets.ps1` |
+| Local unit/contract/UI tests | PASS, 30/30 | `python -m unittest discover -s tests -v` |
+| Six-page Streamlit smoke | PASS | Official AppTest harness over stable contract-shaped frames |
+| Repository secret scan | PASS, 92 tracked and unignored files scanned | `scripts/scan_secrets.ps1` |
 | Snowflake validation | PASS, 28/28 | Query IDs listed in `COCO_USAGE.md` |
 | Persona OTD consistency | PASS | 60%, 3 of 5 delivered, shipment grain, same governed window |
 | `SHP-1002` combined answer | PASS | `01c76058-3203-73c7-0018-686a000833d2` |
@@ -46,6 +47,11 @@ Hosted CoCo Automations could not be confirmed because the Automations endpoint 
 unreachable from the current trial environment. The repository did not enable the CLI's
 experimental override. The declared Snowflake Task fallback is active and its manual run
 succeeded.
+
+The decision-first UI pass compiled and rendered all six pages locally without changing
+Snowflake contracts. Its Streamlit-only replacement deployment was attempted on 2026-09-30
+but external-browser OAuth timed out before the CLI connected; no deployed object or data
+was changed. Interactive deployment and clean-browser rehearsal remain pending.
 
 ## Still requires human/external verification
 

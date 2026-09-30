@@ -7,8 +7,10 @@ real link, session ID, query ID, screenshot, or result.
 
 **Governed Supply Chain Ontology and Exception Copilot**
 
-One shared definition of delivery, fulfilment, inventory, cost, and document truth for
-planning, procurement, and logistics.
+**One shipment. Two destinations. One governed truth.**
+
+One shared definition of delivery, fulfilment, inventory, cost, and documentary truth for
+planning, procurement, and logistics—from conflicting data to one governed decision.
 
 ## Slide 2 - The operational problem
 
@@ -57,6 +59,10 @@ Show `SHP-1002`: the SI and Draft BL disagree, and the response cites both filen
 confidence. Then show missing, corrupted, and ambiguous documents routing to review. An
 unconfirmed action is blocked; a confirmed action records case ID, shipment, actor,
 timestamp, reason, severity, source question, and confirmation.
+
+Open with the Decision Brief: one-day late delivery, SI destination `VNSGN`, Draft BL
+destination `THLCH`, normalized weight `8000` versus `7800`, and two linked findings. Values
+must be visible from the application data, not pasted into a static mock-up.
 
 Evidence:
 

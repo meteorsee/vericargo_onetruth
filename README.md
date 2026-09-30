@@ -7,6 +7,11 @@ Ontology and Governed Conversational Analytics. It connects suppliers, parts, pl
 orders, shipments, ports, inventory, landed costs, and shipping documents through one
 governed semantic layer.
 
+The judge-first product story is: **one shipment, two destinations, one governed truth**.
+For `SHP-1002`, the application connects a one-day delivery delay to conflicting SI and
+Draft BL destination/weight evidence, obtains a governed Agent explanation, and turns the
+finding into an explicitly confirmed, auditable human-review workflow.
+
 The working MVP contains:
 
 - deterministic, referentially consistent synthetic supply-chain data;
@@ -177,4 +182,15 @@ Use [`docs/submission-checklist.md`](docs/submission-checklist.md) for the hard 
 [`docs/submission-deck.md`](docs/submission-deck.md) for the judge-facing English deck copy.
 The latest executed checks are in [`docs/test-results.md`](docs/test-results.md), and the
 private account handoff steps are in [`docs/judge-access.md`](docs/judge-access.md).
+
+The decision-first presentation pass is documented in:
+
+- [`docs/current_state_audit.md`](docs/current_state_audit.md): frozen implementation map;
+- [`docs/baseline_validation.md`](docs/baseline_validation.md): pre-change baseline;
+- [`docs/ui_flow.md`](docs/ui_flow.md): shared context and connected actions;
+- [`docs/demo_flow.md`](docs/demo_flow.md): complete judge journey and safe repeatability;
+- [`docs/regression_results.md`](docs/regression_results.md): post-change verification;
+- [`docs/implementation-checkpoints.md`](docs/implementation-checkpoints.md): phase-by-phase
+  completion and remaining live gates;
+- [`docs/known_limitations.md`](docs/known_limitations.md): honest integration/runtime boundary.
 

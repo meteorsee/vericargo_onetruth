@@ -43,6 +43,8 @@ the independently implemented Snowflake solution.
 - [x] Unconfirmed and unknown-shipment paths fail safely; local guardrail tests and the
   Snowflake blocked-write check pass.
 - [x] Confirmed action records the complete audit trail.
+- [x] All six decision-first pages render in the local Streamlit smoke harness against the
+  stable application contracts.
 - [ ] Streamlit completes staged-file -> chat -> review-case flow.
 - [x] Secrets scan is clean and only synthetic data is committed.
 
