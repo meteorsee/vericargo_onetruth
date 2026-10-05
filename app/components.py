@@ -70,7 +70,6 @@ def open_context(
 
     if shipment_id:
         st.session_state.selected_shipment_id = shipment_id
-        st.session_state.shipment_context_selector = shipment_id
         st.session_state.pop("review_proposal", None)
         st.session_state.pop("pending_review_action", None)
     if question:
@@ -115,6 +114,23 @@ def _evidence_value(row: pd.Series | None, side: str) -> tuple[str, str, str]:
     )
 
 
+def _delivery_summary(shipment: pd.Series) -> str:
+    days_late = int(shipment.get("DELIVERY_DAYS_LATE") or 0)
+    status = str(shipment.get("STATUS") or "").upper()
+    actual = shipment.get("ACTUAL_DELIVERY_DATE")
+    actual_missing = actual is None or pd.isna(actual)
+    if actual_missing and status != "DELIVERED":
+        if days_late > 0:
+            return f"{days_late} day{'s' if days_late != 1 else ''} past promise"
+        return "In transit"
+    if days_late > 0:
+        return f"{days_late} day{'s' if days_late != 1 else ''} late"
+    if days_late < 0:
+        days_early = abs(days_late)
+        return f"{days_early} day{'s' if days_early != 1 else ''} early"
+    return "On time"
+
+
 def render_decision_brief(
     shipment: pd.Series,
     evidence: pd.DataFrame,
@@ -129,22 +145,40 @@ def render_decision_brief(
     bl_destination, bl_destination_norm, bl_source = _evidence_value(destination, "BL")
     si_weight, si_weight_norm, _ = _evidence_value(weight, "SI")
     bl_weight, bl_weight_norm, _ = _evidence_value(weight, "BL")
-    days_late = int(shipment.get("DELIVERY_DAYS_LATE") or 0)
     risk = humanize(shipment.get("RISK_SEVERITY"))
     exception_count = len(findings)
+    document_outcome = str(shipment.get("DOCUMENT_OUTCOME") or "UNRESOLVED").upper()
+    document_state = {
+        "MATCH": "document evidence aligned",
+        "MISMATCH": "conflicting document evidence",
+        "MISSING": "required document missing",
+        "UNRESOLVED": "document evidence unresolved",
+    }.get(document_outcome, "document status unavailable")
+    origin = shipment.get("ORIGIN_PORT_NAME", shipment.get("ORIGIN_PORT_CODE"))
+    destination_name = shipment.get(
+        "DESTINATION_PORT_NAME", shipment.get("DESTINATION_PORT_CODE")
+    )
+    attention_state = "ATTENTION" if exception_count else "HEALTHY"
+    review_message = (
+        "Human confirmation required  \nNo write before confirmation"
+        if exception_count
+        else "No open finding  \nNo review action required"
+    )
+    copilot_question = (
+        f"Why is {shipment_id} in exception? Cite the available source filenames."
+        if exception_count
+        else f"Summarize {shipment_id} and explain why it has no open exception. Cite the available source filenames."
+    )
 
     with st.container(border=True):
         header, status = st.columns([4, 1])
         header.subheader(f"{shipment_id} · Decision Brief")
-        header.caption(
-            f"{shipment.get('ORIGIN_PORT_NAME', shipment.get('ORIGIN_PORT_CODE'))} → "
-            "conflicting destination evidence"
-        )
-        status.markdown(f"**{labelled_status('ATTENTION')}**")
+        header.caption(f"{origin} → {destination_name} · {document_state}")
+        status.markdown(f"**{labelled_status(attention_state)}**")
 
         operational, shipping_instruction, draft_bl, governed = st.columns(4)
         operational.markdown("**Operational finding**")
-        operational.metric("Delivery", f"{days_late} day{'s' if days_late != 1 else ''} late")
+        operational.metric("Delivery", _delivery_summary(shipment))
         operational.caption(
             f"Promised {shipment.get('PROMISED_DELIVERY_DATE')}  \n"
             f"Actual {shipment.get('ACTUAL_DELIVERY_DATE')}"
@@ -170,7 +204,7 @@ def render_decision_brief(
         governed.metric("Risk", risk)
         governed.caption(
             f"{exception_count} linked finding(s)  \n"
-            "Human confirmation required  \nNo write before confirmation"
+            f"{review_message}"
         )
 
         investigate, inspect, ask = st.columns(3)
@@ -194,7 +228,7 @@ def render_decision_brief(
             args=(
                 "OneTruth Copilot",
                 shipment_id,
-                f"Why is {shipment_id} in exception? Cite both source filenames.",
+                copilot_question,
             ),
         )
 
@@ -208,8 +242,7 @@ def render_shipment_header(shipment: pd.Series, review_status: str | None) -> No
             f"{shipment.get('SUPPLIER_NAME')}"
         )
         risk.metric("Risk", labelled_status(shipment.get("RISK_SEVERITY")))
-        days_late = int(shipment.get("DELIVERY_DAYS_LATE") or 0)
-        delivery.metric("Delivery", f"{days_late} day{'s' if days_late != 1 else ''} late")
+        delivery.metric("Delivery", _delivery_summary(shipment))
         review.metric(
             "Review",
             labelled_status(review_status or "PENDING") if review_status else "Not created",

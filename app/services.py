@@ -6,8 +6,18 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+import streamlit as st
+
 AGENT_NAME = "VERICARGO_ONETRUTH.APP.VERICARGO_AGENT"
 DB = "VERICARGO_ONETRUTH"
+READ_CACHE_TTL_SECONDS = 45
+
+
+@st.cache_data(ttl=READ_CACHE_TTL_SECONDS, show_spinner=False)
+def _cached_frame(_session: Any, sql: str, params: tuple[Any, ...]):
+    """Cache stable, read-only application views between Streamlit reruns."""
+
+    return _session.sql(sql, params=list(params)).to_pandas()
 
 
 def parse_variant(value: Any) -> dict[str, Any]:
@@ -37,22 +47,36 @@ class OneTruthService:
 
     session: Any
 
-    def frame(self, sql: str, params: list[Any] | None = None):
-        return self.session.sql(sql, params=params or []).to_pandas()
+    def frame(
+        self,
+        sql: str,
+        params: list[Any] | None = None,
+        *,
+        cache: bool = False,
+    ):
+        normalized = tuple(params or [])
+        if cache:
+            return _cached_frame(self.session, sql, normalized)
+        return self.session.sql(sql, params=list(normalized)).to_pandas()
 
     def control_tower(self):
-        return self.frame(f"SELECT * FROM {DB}.APP.VW_CONTROL_TOWER ORDER BY attention_rank")
+        return self.frame(
+            f"SELECT * FROM {DB}.APP.VW_CONTROL_TOWER ORDER BY attention_rank",
+            cache=True,
+        )
 
     def shipment_ids(self) -> list[str]:
-        rows = self.session.sql(
-            f"SELECT shipment_id FROM {DB}.APP.VW_SHIPMENT_360 ORDER BY shipment_id"
-        ).collect()
-        return [row["SHIPMENT_ID"] for row in rows]
+        frame = self.frame(
+            f"SELECT shipment_id FROM {DB}.APP.VW_SHIPMENT_360 ORDER BY shipment_id",
+            cache=True,
+        )
+        return frame["SHIPMENT_ID"].tolist()
 
     def shipment(self, shipment_id: str):
         return self.frame(
             f"SELECT * FROM {DB}.APP.VW_SHIPMENT_360 WHERE shipment_id = ?",
             [shipment_id],
+            cache=True,
         )
 
     def timeline(self, shipment_id: str):
@@ -60,6 +84,7 @@ class OneTruthService:
             f"SELECT * FROM {DB}.APP.VW_SHIPMENT_TIMELINE "
             "WHERE shipment_id = ? ORDER BY event_sequence",
             [shipment_id],
+            cache=True,
         )
 
     def document_evidence(self, shipment_id: str):
@@ -67,6 +92,7 @@ class OneTruthService:
             f"SELECT * FROM {DB}.APP.VW_DOCUMENT_COMPARISON "
             "WHERE shipment_id = ? ORDER BY display_order, field_name",
             [shipment_id],
+            cache=True,
         )
 
     def exceptions(self, shipment_id: str | None = None):
@@ -75,9 +101,11 @@ class OneTruthService:
                 f"SELECT * FROM {DB}.APP.VW_EXCEPTION_DETAIL "
                 "WHERE shipment_id = ? ORDER BY severity, exception_id",
                 [shipment_id],
+                cache=True,
             )
         return self.frame(
-            f"SELECT * FROM {DB}.APP.VW_EXCEPTION_DETAIL ORDER BY detected_at DESC"
+            f"SELECT * FROM {DB}.APP.VW_EXCEPTION_DETAIL ORDER BY detected_at DESC",
+            cache=True,
         )
 
     def review_queue(self, shipment_id: str | None = None):

@@ -43,6 +43,24 @@ class DecisionFirstUiContractTests(unittest.TestCase):
         self.assertIn("document_evidence(decision_id)", APP_SOURCE)
         self.assertIn("service.control_tower()", APP_SOURCE)
 
+    def test_control_tower_decision_brief_uses_active_shipment_context(self) -> None:
+        self.assertIn('"selected_shipment_id": "SHP-1001"', APP_SOURCE)
+        self.assertIn('target = data[data["SHIPMENT_ID"] == current]', APP_SOURCE)
+        self.assertIn('key="selected_shipment_id"', APP_SOURCE)
+        self.assertIn("on_change=clear_shipment_context_drafts", APP_SOURCE)
+        self.assertNotIn("shipment_context_selector", APP_SOURCE + COMPONENT_SOURCE)
+        self.assertNotIn("control_tower_shipment", APP_SOURCE)
+        self.assertNotIn('data["SHIPMENT_ID"] == "SHP-1002"', APP_SOURCE)
+        self.assertIn("Portfolio-wide metrics", APP_SOURCE)
+
+    def test_read_only_views_are_cached_without_caching_review_mutations(self) -> None:
+        self.assertIn("@st.cache_data", SERVICE_SOURCE)
+        self.assertIn("READ_CACHE_TTL_SECONDS = 45", SERVICE_SOURCE)
+        review_method = SERVICE_SOURCE.split("def review_queue", 1)[1].split(
+            "def audit_history", 1
+        )[0]
+        self.assertNotIn("cache=True", review_method)
+
     def test_evidence_and_trust_experience_is_present(self) -> None:
         for required_text in (
             "Visual comparison · problems first",

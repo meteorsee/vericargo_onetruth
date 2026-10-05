@@ -28,6 +28,8 @@ class FakeQuery:
     def to_pandas(self) -> pd.DataFrame:
         if "VW_CONTROL_TOWER" in self.sql:
             return self.session.control.copy()
+        if "SELECT shipment_id FROM" in self.sql:
+            return pd.DataFrame({"SHIPMENT_ID": self.session.shipment_ids})
         if "VW_SHIPMENT_360" in self.sql:
             frame = self.session.control.copy()
             if self.params:
@@ -36,8 +38,12 @@ class FakeQuery:
         if "VW_SHIPMENT_TIMELINE" in self.sql:
             return self.session.timeline.copy()
         if "VW_DOCUMENT_COMPARISON" in self.sql:
+            if self.params and self.params[0] != "SHP-1002":
+                return self.session.evidence.iloc[0:0].copy()
             return self.session.evidence.copy()
         if "VW_EXCEPTION_DETAIL" in self.sql:
+            if self.params and self.params[0] != "SHP-1002":
+                return self.session.exceptions.iloc[0:0].copy()
             return self.session.exceptions.copy()
         if "VW_REVIEW_QUEUE" in self.sql:
             return self.session.review_queue.copy()
@@ -230,6 +236,35 @@ class StreamlitPageSmokeTests(unittest.TestCase):
                 app.session_state["current_page"] = page
                 app.run()
                 self.assertEqual([], list(app.exception), page)
+
+    def test_control_tower_decision_brief_follows_selected_shipment(self) -> None:
+        app_path = ROOT / "app" / "streamlit_app.py"
+        fake_session = FakeSession()
+        with patch(
+            "snowflake.snowpark.context.get_active_session", return_value=fake_session
+        ):
+            app = AppTest.from_file(str(app_path), default_timeout=20).run()
+            self.assertEqual("SHP-1001", app.session_state["selected_shipment_id"])
+            selector = next(
+                element
+                for element in app.selectbox
+                if element.label == "Active shipment context"
+            )
+            selector.select("SHP-1002").run()
+            self.assertEqual([], list(app.exception))
+            self.assertEqual("SHP-1002", app.session_state["selected_shipment_id"])
+            self.assertEqual(
+                "SHP-1002",
+                next(
+                    element.value
+                    for element in app.selectbox
+                    if element.label == "Active shipment context"
+                ),
+            )
+            self.assertIn(
+                "SHP-1002 · Decision Brief",
+                [element.value for element in app.subheader],
+            )
 
 
 if __name__ == "__main__":

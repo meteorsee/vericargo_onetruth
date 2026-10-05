@@ -29,13 +29,20 @@ st.set_page_config(page_title="VeriCargo OneTruth", page_icon="🚢", layout="wi
 st.markdown(
     """
     <style>
-      .block-container {padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1500px;}
+      .block-container {padding-top: 1rem; padding-bottom: 2.5rem; max-width: 1680px;}
       [data-testid="stMetric"] {
         border: 1px solid #26364a;
-        border-radius: 12px;
-        padding: .75rem;
-        min-height: 104px;
+        border-radius: 10px;
+        padding: .55rem .6rem;
+        min-height: 86px;
       }
+      [data-testid="stMetricLabel"] p {font-size: .79rem; line-height: 1.15;}
+      [data-testid="stMetricValue"] {
+        font-size: clamp(1.18rem, 1.55vw, 1.72rem);
+        line-height: 1.12;
+        white-space: nowrap;
+      }
+      [data-testid="stMetricValue"] > div {font-size: inherit; white-space: nowrap;}
       .context {color: #8bc5ff; font-weight: 650; margin-bottom: .5rem;}
       div.stButton > button {border-radius: 8px; min-height: 2.55rem;}
       .onetruth-hero {
@@ -51,8 +58,8 @@ st.markdown(
         font-weight: 750;
         letter-spacing: .16em;
       }
-      .onetruth-hero h1 {font-size: clamp(1.7rem, 3vw, 2.7rem); margin: .25rem 0 .45rem;}
-      .onetruth-hero p {max-width: 850px; color: #c7d6e5; margin: 0; font-size: 1.02rem;}
+      .onetruth-hero h1 {font-size: clamp(1.55rem, 2.4vw, 2.25rem); margin: .25rem 0 .4rem;}
+      .onetruth-hero p {max-width: 900px; color: #c7d6e5; margin: 0; font-size: .94rem;}
       [data-testid="stDataFrame"] {border: 1px solid #26364a; border-radius: 10px;}
       @media (max-width: 900px) {
         .block-container {padding-left: 1rem; padding-right: 1rem;}
@@ -67,8 +74,7 @@ service = OneTruthService(get_active_session())
 
 STATE_DEFAULTS: dict[str, Any] = {
     "current_page": "Control Tower",
-    "selected_shipment_id": "SHP-1002",
-    "shipment_context_selector": "SHP-1002",
+    "selected_shipment_id": "SHP-1001",
     "selected_exception_id": None,
     "selected_document_field": None,
     "pending_review_action": None,
@@ -98,8 +104,19 @@ def nav_button(label: str, page: str) -> None:
     )
 
 
-def update_shipment_context() -> None:
-    st.session_state.selected_shipment_id = st.session_state.shipment_context_selector
+def set_shipment_context(shipment_id: str) -> None:
+    """Set the single shipment context and clear context-specific draft state."""
+
+    st.session_state.selected_shipment_id = shipment_id
+    st.session_state.selected_document_field = None
+    st.session_state.selected_exception_id = None
+    st.session_state.pop("review_proposal", None)
+    st.session_state.pending_review_action = None
+
+
+def clear_shipment_context_drafts() -> None:
+    """Reset only draft state after the shipment selectbox changes itself."""
+
     st.session_state.selected_document_field = None
     st.session_state.selected_exception_id = None
     st.session_state.pop("review_proposal", None)
@@ -134,13 +151,11 @@ with st.sidebar:
         if current not in shipment_ids:
             current = shipment_ids[0]
             st.session_state.selected_shipment_id = current
-        if st.session_state.shipment_context_selector not in shipment_ids:
-            st.session_state.shipment_context_selector = current
         selected = st.selectbox(
             "Active shipment context",
             shipment_ids,
-            key="shipment_context_selector",
-            on_change=update_shipment_context,
+            key="selected_shipment_id",
+            on_change=clear_shipment_context_drafts,
         )
         st.markdown(f'<div class="context">Context: {selected}</div>', unsafe_allow_html=True)
 
@@ -159,6 +174,7 @@ with st.sidebar:
     if st.button("↻ Refresh data", width="stretch"):
         st.cache_data.clear()
         st.rerun()
+    st.caption("Read views cached 45s · Refresh clears cache")
     st.caption("USD only · evidence required · explicit confirmation")
 
 
@@ -172,21 +188,27 @@ def control_tower_page() -> None:
         )
         return
 
-    target = data[data["SHIPMENT_ID"] == "SHP-1002"]
+    current = st.session_state.selected_shipment_id
+    target = data[data["SHIPMENT_ID"] == current]
     decision_row = (target if not target.empty else data.sort_values("ATTENTION_RANK")).iloc[0]
     decision_id = str(decision_row["SHIPMENT_ID"])
+    if decision_id != current:
+        set_shipment_context(decision_id)
     evidence = service.document_evidence(decision_id)
     findings = service.exceptions(decision_id)
     render_decision_brief(decision_row, evidence, findings)
 
     st.subheader("Canonical portfolio metrics")
-    st.caption("Each definition lives once in the governed marts and native semantic view.")
+    st.caption(
+        "Portfolio-wide metrics: these remain constant when shipment context changes. "
+        "Each definition lives once in the governed marts and native semantic view."
+    )
     row = data.iloc[0]
     cards = st.columns(6)
     cards[0].metric("On-time delivery", f"{float(row['ON_TIME_DELIVERY_RATE']):.1%}")
     cards[1].metric("Fill rate", f"{float(row['FILL_RATE']):.1%}")
     cards[2].metric("Days of inventory", f"{float(row['PORTFOLIO_DAYS_OF_INVENTORY']):.1f}")
-    cards[3].metric("Landed cost", f"{float(row['PORTFOLIO_LANDED_COST_USD']):,.0f} USD")
+    cards[3].metric("Landed cost (USD)", f"{float(row['PORTFOLIO_LANDED_COST_USD']):,.0f}")
     cards[4].metric("Delayed shipments", int(row["DELAYED_SHIPMENT_COUNT"]))
     cards[5].metric("Open exceptions", int(row["EXCEPTION_COUNT"]))
 
@@ -228,19 +250,13 @@ def control_tower_page() -> None:
     attention["RISK_SEVERITY"] = attention["RISK_SEVERITY"].map(labelled_status)
     attention["DOCUMENT_OUTCOME"] = attention["DOCUMENT_OUTCOME"].map(labelled_status)
     st.dataframe(attention, width="stretch", hide_index=True)
-    ids = data["SHIPMENT_ID"].tolist()
     current = st.session_state.selected_shipment_id
-    chosen = st.selectbox(
-        "Select a shipment to investigate",
-        ids,
-        index=ids.index(current) if current in ids else 0,
-        key="control_tower_shipment",
-    )
+    st.caption(f"Active shipment decision brief: **{current}**")
     st.button(
         "Open Shipment Intelligence →",
         type="primary",
         on_click=open_context,
-        args=("Shipment Intelligence", chosen),
+        args=("Shipment Intelligence", current),
     )
 
 
