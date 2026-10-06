@@ -152,3 +152,23 @@ Store public-safe screenshots and summaries under `docs/coco-evidence/`. Keep sc
 containing account identifiers, email addresses, credentials, or private URLs outside the
 repository.
 
+## Event-account migration note - 2026-10-05
+
+- The organizer-provided `WH80281` Enterprise trial account accepts hosted CoCo
+  Automations, but Snowflake returned error `399258` for `AI_PARSE_DOCUMENT`, legacy
+  `SNOWFLAKE.CORTEX.PARSE_DOCUMENT`, and `AI_EXTRACT`: these AI functions are not
+  available for trial accounts.
+- Native document-AI execution evidence and query IDs above came from the original
+  `EL85412` deployment. The migrated event-account runtime uses the explicitly disclosed
+  `FIXTURE` processing mode generated from the same synthetic PDFs; it must not be
+  presented as fresh model inference.
+- The native `AI` procedure remains in source for entitled accounts. Governance exposes
+  the active processing mode so judges can distinguish runtime behaviour from the
+  portable architecture.
+- Cortex Search creation in the event account also failed with Snowflake error `399258`
+  because `EMBED_TEXT_768` is unavailable for trial accounts. The core deployment now uses
+  `EVIDENCE_RETRIEVAL_MODE=SEMANTIC_VIEW`: Cortex Analyst can query structured document
+  fields, confidence, processing status, errors, and source filenames without embeddings.
+  `snowflake/optional/06_search_and_agent_entitled.sql` retains the Search-enabled path for
+  an entitled account; it is not executed or claimed for the event trial runtime.
+

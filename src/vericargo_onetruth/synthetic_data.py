@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+
+from .document_comparison import normalize_container_count, normalize_weight_kg
 
 SUPPLIERS = [
     {"supplier_id": "SUP-001", "supplier_name": "Nimbus Components", "country": "Malaysia", "risk_tier": "LOW"},
@@ -188,10 +191,13 @@ def _document_lines(
     ]
 
 
-def _write_documents(output_dir: Path) -> list[dict[str, str]]:
+def _write_documents(
+    output_dir: Path,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     documents_dir = output_dir / "documents"
     documents_dir.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, str]] = []
+    extraction_fixtures: list[dict[str, str]] = []
 
     scenarios = {
         "SHP-1001": ("Nimbus Components", "Orion Motors", "Orion Logistics", "Penang / MYPEN", "Laem Chabang / THLCH", "1 x 40HC", "10,000 KG"),
@@ -211,6 +217,31 @@ def _write_documents(output_dir: Path) -> list[dict[str, str]]:
                 "shipment_id": shipment_id,
                 "document_type": doc_type,
                 "relative_path": filename,
+            }
+        )
+        labelled_values = {
+            line.split(": ", maxsplit=1)[0]: line.split(": ", maxsplit=1)[1]
+            for line in lines
+            if ": " in line
+        }
+        container_count = normalize_container_count(labelled_values.get("Container Count"))
+        gross_weight_kg = normalize_weight_kg(labelled_values.get("Gross Weight"))
+        extraction_fixtures.append(
+            {
+                "document_id": document_id,
+                "parse_content": " | ".join(lines),
+                "consignee": labelled_values.get("Consignee", ""),
+                "port_of_loading": labelled_values.get("Port of Loading", ""),
+                "port_of_discharge": labelled_values.get("Port of Discharge", ""),
+                "container_number": "",
+                "container_count": "" if container_count is None else str(container_count),
+                "gross_weight_kg": (
+                    "" if gross_weight_kg is None else format(gross_weight_kg, "f")
+                ),
+                "marks_and_numbers": "",
+                "min_confidence": "0.95",
+                "processing_status": "PARSED",
+                "error_details": "",
             }
         )
 
@@ -239,6 +270,22 @@ def _write_documents(output_dir: Path) -> list[dict[str, str]]:
                     "shipment_id": shipment_id,
                     "document_type": "DRAFT_BL",
                     "relative_path": filename,
+                }
+            )
+            extraction_fixtures.append(
+                {
+                    "document_id": f"DOC-{shipment_id}-BL",
+                    "parse_content": "",
+                    "consignee": "",
+                    "port_of_loading": "",
+                    "port_of_discharge": "",
+                    "container_number": "",
+                    "container_count": "",
+                    "gross_weight_kg": "",
+                    "marks_and_numbers": "",
+                    "min_confidence": "",
+                    "processing_status": "FAILED",
+                    "error_details": "Synthetic unreadable PDF fixture.",
                 }
             )
             continue
@@ -280,7 +327,7 @@ def _write_documents(output_dir: Path) -> list[dict[str, str]]:
             )
             add_pdf("DOC-SHP-1006-SI-B", shipment_id, "SI", alternate)
 
-    return manifest
+    return manifest, extraction_fixtures
 
 
 def generate_dataset(output_dir: str | Path) -> dict[str, list[dict[str, Any]]]:
@@ -301,9 +348,26 @@ def generate_dataset(output_dir: str | Path) -> dict[str, list[dict[str, Any]]]:
     }
     for name, rows in datasets.items():
         _write_csv(output_path / f"{name}.csv", rows)
-    manifest = _write_documents(output_path)
+    manifest, extraction_fixtures = _write_documents(output_path)
+    document_registry = []
+    for row in manifest:
+        payload = (output_path / "documents" / row["relative_path"]).read_bytes()
+        document_registry.append(
+            {
+                **row,
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size_bytes": str(len(payload)),
+            }
+        )
     _write_csv(output_path / "document_manifest.csv", manifest)
-    return {**datasets, "document_manifest": manifest}
+    _write_csv(output_path / "document_extraction_fixtures.csv", extraction_fixtures)
+    _write_csv(output_path / "document_file_registry.csv", document_registry)
+    return {
+        **datasets,
+        "document_manifest": manifest,
+        "document_extraction_fixtures": extraction_fixtures,
+        "document_file_registry": document_registry,
+    }
 
 
 def shipped_lines_with_dates() -> list[dict[str, Any]]:

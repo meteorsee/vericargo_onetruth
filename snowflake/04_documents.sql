@@ -63,7 +63,7 @@ $$
   )
 $$;
 
-CREATE OR REPLACE PROCEDURE CURATED.PROCESS_DOCUMENTS()
+CREATE OR REPLACE PROCEDURE CURATED.PROCESS_DOCUMENTS_AI()
 RETURNS VARCHAR
 LANGUAGE SQL
 EXECUTE AS OWNER
@@ -162,7 +162,99 @@ BEGIN
   SELECT COUNT(*) INTO :processed_count
   FROM CURATED.DOCUMENT_PROCESSING;
 
-  RETURN 'Processed ' || processed_count || ' document(s).';
+  RETURN 'AI processed ' || processed_count || ' document(s).';
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE CURATED.PROCESS_DOCUMENTS_FIXTURE()
+RETURNS VARCHAR
+LANGUAGE SQL
+EXECUTE AS OWNER
+AS
+$$
+DECLARE
+  processed_count INTEGER;
+BEGIN
+  TRUNCATE TABLE CURATED.DOCUMENT_PROCESSING;
+
+  INSERT INTO CURATED.DOCUMENT_PROCESSING (
+    document_id,
+    shipment_id,
+    document_type,
+    relative_path,
+    parse_result,
+    extraction_result,
+    min_confidence,
+    processing_status,
+    error_details,
+    processed_at
+  )
+  SELECT
+    manifest.document_id,
+    manifest.shipment_id,
+    manifest.document_type,
+    manifest.relative_path,
+    IFF(
+      fixture.processing_status = 'PARSED',
+      OBJECT_CONSTRUCT('content', fixture.parse_content),
+      OBJECT_CONSTRUCT('errorInformation', fixture.error_details)
+    ),
+    IFF(
+      fixture.processing_status = 'PARSED',
+      OBJECT_CONSTRUCT(
+        'response',
+        OBJECT_CONSTRUCT_KEEP_NULL(
+          'consignee', fixture.consignee,
+          'port_of_loading', fixture.port_of_loading,
+          'port_of_discharge', fixture.port_of_discharge,
+          'container_number', fixture.container_number,
+          'container_count', fixture.container_count,
+          'gross_weight_kg', fixture.gross_weight_kg,
+          'marks_and_numbers', fixture.marks_and_numbers
+        )
+      ),
+      OBJECT_CONSTRUCT('errorInformation', fixture.error_details)
+    ),
+    fixture.min_confidence,
+    fixture.processing_status,
+    fixture.error_details,
+    CURRENT_TIMESTAMP()
+  FROM RAW.DOCUMENT_MANIFEST manifest
+  JOIN RAW.DOCUMENT_EXTRACTION_FIXTURES fixture
+    ON fixture.document_id = manifest.document_id;
+
+  SELECT COUNT(*) INTO :processed_count
+  FROM CURATED.DOCUMENT_PROCESSING;
+
+  RETURN 'Fixture processed ' || processed_count || ' document(s).';
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE CURATED.PROCESS_DOCUMENTS()
+RETURNS VARCHAR
+LANGUAGE SQL
+EXECUTE AS OWNER
+AS
+$$
+DECLARE
+  processing_mode VARCHAR;
+  processed_count INTEGER;
+BEGIN
+  SELECT config_value INTO :processing_mode
+  FROM RAW.RUNTIME_CONFIG
+  WHERE config_key = 'DOCUMENT_PROCESSING_MODE';
+
+  IF (UPPER(COALESCE(processing_mode, 'FIXTURE')) = 'AI') THEN
+    CALL CURATED.PROCESS_DOCUMENTS_AI();
+  ELSE
+    CALL CURATED.PROCESS_DOCUMENTS_FIXTURE();
+  END IF;
+
+  SELECT COUNT(*) INTO :processed_count
+  FROM CURATED.DOCUMENT_PROCESSING;
+
+  RETURN UPPER(COALESCE(processing_mode, 'FIXTURE'))
+    || ' mode processed ' || processed_count || ' document(s).';
 END;
 $$;
 

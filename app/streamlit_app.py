@@ -6,8 +6,6 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
-from snowflake.snowpark.context import get_active_session
-
 from components import (
     format_confidence,
     humanize,
@@ -21,15 +19,18 @@ from components import (
     render_error_state,
     render_hero,
     render_process_trace,
-    render_shipment_header,
+    render_selected_shipment_preview,
 )
 from services import OneTruthService, agent_text
+from snowflake.snowpark.context import get_active_session
 
 st.set_page_config(page_title="VeriCargo OneTruth", page_icon="🚢", layout="wide")
 st.markdown(
     """
     <style>
-      .block-container {padding-top: 1rem; padding-bottom: 2.5rem; max-width: 1680px;}
+      /* Snowflake keeps a fixed top chrome bar even when the sidebar is collapsed.
+         Leave enough clearance so the hero is never rendered underneath it. */
+      .block-container {padding-top: 3rem; padding-bottom: 2.5rem; max-width: 1680px;}
       [data-testid="stMetric"] {
         border: 1px solid #26364a;
         border-radius: 10px;
@@ -62,7 +63,7 @@ st.markdown(
       .onetruth-hero p {max-width: 900px; color: #c7d6e5; margin: 0; font-size: .94rem;}
       [data-testid="stDataFrame"] {border: 1px solid #26364a; border-radius: 10px;}
       @media (max-width: 900px) {
-        .block-container {padding-left: 1rem; padding-right: 1rem;}
+        .block-container {padding-top: 3.25rem; padding-left: 1rem; padding-right: 1rem;}
         .onetruth-hero {padding: 1rem;}
       }
     </style>
@@ -190,18 +191,18 @@ def control_tower_page() -> None:
 
     current = st.session_state.selected_shipment_id
     target = data[data["SHIPMENT_ID"] == current]
-    decision_row = (target if not target.empty else data.sort_values("ATTENTION_RANK")).iloc[0]
-    decision_id = str(decision_row["SHIPMENT_ID"])
-    if decision_id != current:
-        set_shipment_context(decision_id)
-    evidence = service.document_evidence(decision_id)
-    findings = service.exceptions(decision_id)
-    render_decision_brief(decision_row, evidence, findings)
+    preview_row = (target if not target.empty else data.sort_values("ATTENTION_RANK")).iloc[0]
+    preview_id = str(preview_row["SHIPMENT_ID"])
+    if preview_id != current:
+        set_shipment_context(preview_id)
+    st.subheader("Selected shipment preview")
+    st.caption("Shipment scope · changes when the active shipment context changes.")
+    render_selected_shipment_preview(preview_row, service.exceptions(preview_id))
 
-    st.subheader("Canonical portfolio metrics")
+    st.subheader("Portfolio health")
     st.caption(
-        "Portfolio-wide metrics: these remain constant when shipment context changes. "
-        "Each definition lives once in the governed marts and native semantic view."
+        f"Scope: all {len(data)} shipments · governed portfolio metrics · USD only. "
+        "These values intentionally remain constant when shipment context changes."
     )
     row = data.iloc[0]
     cards = st.columns(6)
@@ -250,15 +251,6 @@ def control_tower_page() -> None:
     attention["RISK_SEVERITY"] = attention["RISK_SEVERITY"].map(labelled_status)
     attention["DOCUMENT_OUTCOME"] = attention["DOCUMENT_OUTCOME"].map(labelled_status)
     st.dataframe(attention, width="stretch", hide_index=True)
-    current = st.session_state.selected_shipment_id
-    st.caption(f"Active shipment decision brief: **{current}**")
-    st.button(
-        "Open Shipment Intelligence →",
-        type="primary",
-        on_click=open_context,
-        args=("Shipment Intelligence", current),
-    )
-
 
 def shipment_page() -> None:
     shipment_id = st.session_state.selected_shipment_id
@@ -274,7 +266,15 @@ def shipment_page() -> None:
     row = data.iloc[0]
     shipment_cases = service.review_queue(shipment_id)
     review_status = None if shipment_cases.empty else str(shipment_cases.iloc[0]["STATUS"])
-    render_shipment_header(row, review_status)
+
+    evidence = service.document_evidence(shipment_id)
+    findings = service.exceptions(shipment_id)
+    render_decision_brief(
+        row,
+        evidence,
+        findings,
+        show_investigate_action=False,
+    )
 
     commercial, route = st.columns(2)
     with commercial.container(border=True):
@@ -297,8 +297,6 @@ def shipment_page() -> None:
             f"**Actual:** {value_or_unavailable(row['ACTUAL_DELIVERY_DATE'])}"
         )
 
-    evidence = service.document_evidence(shipment_id)
-    findings = service.exceptions(shipment_id)
     timeline = service.timeline(shipment_id)
     latest_case = None if shipment_cases.empty else shipment_cases.iloc[0]
     latest_audit = (
@@ -533,8 +531,10 @@ def evidence_page() -> None:
         args=(
             "OneTruth Copilot",
             shipment_id,
-            f"Explain the operational delay and document mismatch for {shipment_id}. "
-            "Cite both source filenames.",
+            (
+                f"Explain the operational delay and document mismatch for {shipment_id}. "
+                "Cite both source filenames."
+            ),
         ),
     )
     review.button(
@@ -852,6 +852,7 @@ def review_page() -> None:
 def governance_page() -> None:
     page_header("Governance", "Health, shared definitions, AI boundaries, and auditability")
     status = service.governance_status()
+    automation = service.automation_status()
     control = service.control_tower()
     audit = service.audit_history()
     if status.empty:
@@ -861,7 +862,13 @@ def governance_page() -> None:
         )
         return
 
-    data_health_names = ["DATA_FRESHNESS", "DOCUMENT_HEALTH", "SEARCH_CORPUS"]
+    data_health_names = [
+        "DATA_FRESHNESS",
+        "DOCUMENT_HEALTH",
+        "DOCUMENT_PROCESSING_MODE",
+        "EVIDENCE_RETRIEVAL_MODE",
+        "EVIDENCE_CORPUS",
+    ]
     st.subheader("Data health")
     health = status[status["CHECK_NAME"].isin(data_health_names)].copy()
     health["STATUS"] = health["STATUS"].map(labelled_status)
@@ -902,6 +909,25 @@ def governance_page() -> None:
         width="stretch",
         hide_index=True,
     )
+
+    st.subheader("Daily exception automation")
+    if automation.empty:
+        render_empty_state(
+            "No digest run has been recorded",
+            "Execute APP.DAILY_EXCEPTION_DIGEST once, then verify its scheduled task history.",
+        )
+    else:
+        digest = automation.iloc[0]
+        with st.container(border=True):
+            run, state, high, pending = st.columns(4)
+            run.metric("Last run", value_or_unavailable(digest["RUN_AT"]))
+            state.metric("Status", labelled_status(digest["AUTOMATION_STATUS"]))
+            high.metric("High / critical", int(digest["HIGH_SEVERITY_COUNT"]))
+            pending.metric("Pending review", int(digest["PENDING_REVIEW_COUNT"]))
+            st.markdown(str(digest["DIGEST_TEXT"]))
+            st.caption(
+                "Snowflake Task fallback · read-only exception monitoring · no case is created or updated."
+            )
 
     st.subheader("AI guardrails")
     guardrail_columns = st.columns(2)

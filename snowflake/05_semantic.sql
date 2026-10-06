@@ -42,6 +42,10 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       PRIMARY KEY (exception_id)
       WITH SYNONYMS = ('findings', 'issues', 'alerts')
       COMMENT = 'Governed operational and document exceptions',
+    documents AS CURATED.DOCUMENT_FIELDS
+      PRIMARY KEY (document_id)
+      WITH SYNONYMS = ('shipping documents', 'SI documents', 'bills of lading', 'document evidence')
+      COMMENT = 'Structured Shipping Instruction and Draft Bill of Lading evidence with source filenames',
     inventory AS CURATED.INVENTORY_METRICS
       PRIMARY KEY (plant_id, part_id)
       WITH SYNONYMS = ('stock', 'inventory snapshots')
@@ -59,6 +63,7 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
     shipments_to_destination AS shipments (destination_port_code) REFERENCES ports,
     risk_to_shipment AS shipment_risk (shipment_id) REFERENCES shipments,
     exceptions_to_shipment AS exceptions (shipment_id) REFERENCES shipments,
+    documents_to_shipment AS documents (shipment_id) REFERENCES shipments,
     inventory_to_plant AS inventory (plant_id) REFERENCES plants,
     inventory_to_part AS inventory (part_id) REFERENCES parts
   )
@@ -77,6 +82,7 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
     shipment_risk.cost_risk_score AS shipment_risk.cost_risk_score,
     shipment_risk.data_quality_risk_score AS shipment_risk.data_quality_risk_score,
     shipment_risk.document_min_confidence AS shipment_risk.document_min_confidence,
+    documents.minimum_extraction_confidence AS documents.min_confidence,
     order_lines.ordered_quantity AS order_lines.ordered_qty,
     order_lines.shipped_quantity AS order_lines.shipped_qty,
     order_lines.capped_shipped_quantity AS order_lines.capped_shipped_qty
@@ -112,11 +118,25 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
     shipment_risk.risk_severity AS shipment_risk.risk_severity,
     shipment_risk.feature_refreshed_at AS shipment_risk.feature_refreshed_at,
     exceptions.exception_id AS exceptions.exception_id,
+    exceptions.shipment_id AS exceptions.shipment_id,
     exceptions.exception_category AS exceptions.exception_category,
     exceptions.exception_type AS exceptions.exception_type,
     exceptions.severity AS exceptions.severity,
     exceptions.status AS exceptions.status,
     exceptions.reason AS exceptions.reason,
+    documents.document_id AS documents.document_id,
+    documents.shipment_id AS documents.shipment_id,
+    documents.document_type AS documents.document_type,
+    documents.relative_path AS documents.relative_path,
+    documents.processing_status AS documents.processing_status,
+    documents.error_details AS documents.error_details,
+    documents.consignee AS documents.consignee,
+    documents.port_of_loading AS documents.port_of_loading,
+    documents.port_of_discharge AS documents.port_of_discharge,
+    documents.container_number AS documents.container_number,
+    documents.container_count AS documents.container_count,
+    documents.gross_weight_kg AS documents.gross_weight_kg,
+    documents.marks_and_numbers AS documents.marks_and_numbers,
     inventory.snapshot_date AS inventory.snapshot_date
   )
   METRICS (
@@ -153,8 +173,8 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       COMMENT = 'Current on-hand quantity divided by trailing-30-day average daily shipped quantity; null when demand is zero'
   )
   COMMENT = 'Governed supply-chain ontology for VeriCargo OneTruth'
-  AI_SQL_GENERATION 'Use only the four governed metric definitions in this semantic view. State the grain, filters, date window, and USD currency assumptions. Never infer document facts that are absent or failed extraction.'
-  AI_QUESTION_CATEGORIZATION 'Use this semantic view for supply-chain KPI, supplier, plant, order, shipment, part, inventory, customer, and port questions. Route document-content questions to the document search tool.'
+  AI_SQL_GENERATION 'Use only the governed metric definitions in this semantic view. State the grain, filters, date window, and USD currency assumptions. For document evidence, cite documents.relative_path and report processing_status and error_details. Never infer document facts that are absent or failed extraction.'
+  AI_QUESTION_CATEGORIZATION 'Use this semantic view for supply-chain KPI, supplier, plant, order, shipment, document evidence, exception, inventory, customer, and port questions.'
   AI_VERIFIED_QUERIES (
     operations_otd AS (
       QUESTION 'Operations: what is our on-time delivery rate?'
@@ -199,5 +219,12 @@ CREATE OR REPLACE SEMANTIC VIEW ANALYTICS.SUPPLY_CHAIN_SEMANTIC_VIEW
       VERIFIED_AT 1790467200
       VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
       SQL 'SELECT COUNT(__shipments.shipment_id) AS shipment_count, COUNT_IF(__shipments.actual_delivery_date > __shipments.promised_delivery_date) AS delayed_shipment_count FROM __shipments'
+    ),
+    shipment_1002_evidence AS (
+      QUESTION 'Why is SHP-1002 in exception? Cite the source documents.'
+      VERIFIED_AT 1790467200
+      ONBOARDING_QUESTION TRUE
+      VERIFIED_BY '(STEWARD = VERICARGO_TEAM)'
+      SQL 'SELECT __shipments.shipment_id, __shipments.promised_delivery_date, __shipments.actual_delivery_date, __exceptions.exception_id, __exceptions.exception_category, __exceptions.severity, __exceptions.reason, __documents.document_id, __documents.document_type, __documents.relative_path, __documents.processing_status, __documents.port_of_loading, __documents.port_of_discharge, __documents.container_count, __documents.gross_weight_kg, __documents.minimum_extraction_confidence FROM __shipments LEFT JOIN __exceptions ON __exceptions.shipment_id = __shipments.shipment_id LEFT JOIN __documents ON __documents.shipment_id = __shipments.shipment_id WHERE __shipments.shipment_id = ''SHP-1002'' ORDER BY __exceptions.exception_id, __documents.document_type'
     )
   );

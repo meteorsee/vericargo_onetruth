@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import unittest
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +15,7 @@ if str(APP_DIR) not in sys.path:
 
 
 class FakeQuery:
-    def __init__(self, session: "FakeSession", sql: str, params: list | None = None) -> None:
+    def __init__(self, session: FakeSession, sql: str, params: list | None = None) -> None:
         self.session = session
         self.sql = sql
         self.params = params or []
@@ -51,6 +51,8 @@ class FakeQuery:
             return self.session.audit.copy()
         if "VW_GOVERNANCE_STATUS" in self.sql:
             return self.session.governance.copy()
+        if "VW_AUTOMATION_STATUS" in self.sql:
+            return self.session.automation.copy()
         return pd.DataFrame()
 
 
@@ -200,12 +202,28 @@ class FakeSession:
             [
                 {"CHECK_NAME": "DATA_FRESHNESS", "STATUS": "HEALTHY", "CHECK_VALUE": str(now), "DETAILS": "Latest refresh", "CHECKED_AT": now},
                 {"CHECK_NAME": "DOCUMENT_HEALTH", "STATUS": "ATTENTION", "CHECK_VALUE": "11/12 parsed", "DETAILS": "Failures stay unresolved", "CHECKED_AT": now},
-                {"CHECK_NAME": "SEARCH_CORPUS", "STATUS": "HEALTHY", "CHECK_VALUE": "11 indexed-source rows", "DETAILS": "Evidence indexed", "CHECKED_AT": now},
+                {"CHECK_NAME": "EVIDENCE_RETRIEVAL_MODE", "STATUS": "GOVERNED", "CHECK_VALUE": "SEMANTIC_VIEW", "DETAILS": "Trial-safe structured evidence retrieval", "CHECKED_AT": now},
+                {"CHECK_NAME": "EVIDENCE_CORPUS", "STATUS": "HEALTHY", "CHECK_VALUE": "11 governed evidence rows", "DETAILS": "Evidence available through Analyst", "CHECKED_AT": now},
                 {"CHECK_NAME": "REVIEW_GUARDRAIL", "STATUS": "ENFORCED", "CHECK_VALUE": "0 confirmed case(s)", "DETAILS": "Confirmation required", "CHECKED_AT": now},
                 {"CHECK_NAME": "KPI:ON_TIME_DELIVERY_RATE", "STATUS": "GOVERNED", "CHECK_VALUE": "Delivered on/before promise / delivered", "DETAILS": "Shipment grain", "CHECKED_AT": now},
                 {"CHECK_NAME": "KPI:FILL_RATE", "STATUS": "GOVERNED", "CHECK_VALUE": "Capped shipped / ordered", "DETAILS": "Order-line grain", "CHECKED_AT": now},
                 {"CHECK_NAME": "KPI:DAYS_OF_INVENTORY", "STATUS": "GOVERNED", "CHECK_VALUE": "On-hand / demand", "DETAILS": "Plant-part grain", "CHECKED_AT": now},
                 {"CHECK_NAME": "KPI:LANDED_COST", "STATUS": "GOVERNED", "CHECK_VALUE": "Cost components", "DETAILS": "Shipment grain; USD", "CHECKED_AT": now},
+            ]
+        )
+        self.automation = pd.DataFrame(
+            [
+                {
+                    "RUN_AT": now,
+                    "OPEN_EXCEPTION_COUNT": 7,
+                    "HIGH_SEVERITY_COUNT": 3,
+                    "PENDING_REVIEW_COUNT": 0,
+                    "DIGEST_TEXT": (
+                        "VeriCargo OneTruth daily digest: 7 open exception(s), "
+                        "3 high/critical, 0 pending human-review case(s)."
+                    ),
+                    "AUTOMATION_STATUS": "HEALTHY",
+                }
             ]
         )
 
@@ -217,7 +235,7 @@ class FakeSession:
 
 
 class StreamlitPageSmokeTests(unittest.TestCase):
-    def test_all_six_pages_render_against_stable_contracts(self) -> None:
+    def test_all_connected_pages_render_against_stable_contracts(self) -> None:
         app_path = ROOT / "app" / "streamlit_app.py"
         fake_session = FakeSession()
         with patch(
@@ -237,7 +255,7 @@ class StreamlitPageSmokeTests(unittest.TestCase):
                 app.run()
                 self.assertEqual([], list(app.exception), page)
 
-    def test_control_tower_decision_brief_follows_selected_shipment(self) -> None:
+    def test_control_tower_preview_follows_selected_shipment(self) -> None:
         app_path = ROOT / "app" / "streamlit_app.py"
         fake_session = FakeSession()
         with patch(
@@ -262,7 +280,7 @@ class StreamlitPageSmokeTests(unittest.TestCase):
                 ),
             )
             self.assertIn(
-                "SHP-1002 · Decision Brief",
+                "SHP-1002 · Selected shipment",
                 [element.value for element in app.subheader],
             )
 

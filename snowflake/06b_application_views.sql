@@ -120,6 +120,15 @@ SELECT audit_event_id, case_id, event_type, from_status, to_status,
   event_note, actor, event_at
 FROM APP.REVIEW_AUDIT_EVENTS;
 
+CREATE OR REPLACE VIEW APP.VW_DOCUMENT_INTAKE AS
+SELECT
+  intake_id, shipment_id, declared_document_type, original_filename, safe_filename,
+  content_type, size_bytes, sha256, stage_path, stage_status, client_validation,
+  verification_status, matched_document_id, matched_shipment_id,
+  matched_document_type, processing_mode, status_note, error_details,
+  viewer_identity, created_by, created_at
+FROM APP.DOCUMENT_INTAKE_EVENTS;
+
 CREATE OR REPLACE VIEW APP.VW_GOVERNANCE_STATUS AS
 SELECT 'DATA_FRESHNESS' AS check_name,
   IFF(DATEDIFF('hour', MAX(feature_refreshed_at), CURRENT_TIMESTAMP()) <= 24,
@@ -135,10 +144,22 @@ SELECT 'DOCUMENT_HEALTH',
   'Failed and low-confidence documents remain unresolved', CURRENT_TIMESTAMP()
 FROM CURATED.DOCUMENT_PROCESSING
 UNION ALL
-SELECT 'SEARCH_CORPUS', IFF(COUNT(*) > 0, 'HEALTHY', 'ATTENTION'),
-  COUNT(*) || ' indexed-source rows',
-  'Cortex Search source includes document and shipment metadata', CURRENT_TIMESTAMP()
+SELECT config_key, 'GOVERNED', config_value,
+  config_note, CURRENT_TIMESTAMP()
+FROM RAW.RUNTIME_CONFIG
+WHERE config_key IN ('DOCUMENT_PROCESSING_MODE', 'EVIDENCE_RETRIEVAL_MODE')
+UNION ALL
+SELECT 'EVIDENCE_CORPUS', IFF(COUNT(*) > 0, 'HEALTHY', 'ATTENTION'),
+  COUNT(*) || ' governed evidence row(s)',
+  'Structured evidence is available to Cortex Analyst through the semantic view', CURRENT_TIMESTAMP()
 FROM CURATED.DOCUMENT_SEARCH_CORPUS
+UNION ALL
+SELECT 'DOCUMENT_INTAKE',
+  IFF(COUNT_IF(verification_status = 'REJECTED') = 0, 'HEALTHY', 'ATTENTION'),
+  COUNT(*) || ' upload attempt(s)',
+  'Uploads are checksum-verified and quarantined; they never replace governed evidence automatically',
+  CURRENT_TIMESTAMP()
+FROM APP.DOCUMENT_INTAKE_EVENTS
 UNION ALL
 SELECT 'REVIEW_GUARDRAIL', 'ENFORCED',
   COUNT_IF(confirmation_recorded) || ' confirmed case(s)',

@@ -1,21 +1,20 @@
 # Four-minute decision-first demo script
 
-## 0:00–0:25 — The contradiction
+## 0:00–0:20 — The control-tower signal
 
-Open on the Control Tower Decision Brief.
+Open the Control Tower with `SHP-1002` selected. Show the selected-shipment preview,
+portfolio context, high risk and two open findings.
 
 > “This shipment has two destinations. Its Shipping Instruction says Ho Chi Minh City,
 > Vietnam. Its Draft Bill of Lading says Laem Chabang, Thailand. It was also delivered one
 > day late. Which version should the business trust?”
 
-Show the two source filenames, normalized weight 8000 versus 7800, high risk, two findings,
-and the explicit-confirmation boundary.
-
-## 0:25–0:55 — Connected shipment investigation
+## 0:20–0:55 — Connected shipment investigation
 
 Click **Investigate shipment**. Show that SHP-1002 persists automatically. Point out the
-promised/actual dates, actual event journey, deterministic risk components, two governed
-findings, and the evidence-to-action trace.
+`HOLD · correction required` decision, two source filenames, normalized weight 8000 versus
+7800, promised/actual dates, deterministic risk components, two governed findings, and the
+evidence-to-action trace.
 
 > “OneTruth connects operational truth, documentary truth, explanation, human decision and
 > audit in one investigation context.”

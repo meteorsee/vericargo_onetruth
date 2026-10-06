@@ -9,7 +9,7 @@ CoCo transcript is session `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`.
 
 | Area | Result | Evidence |
 |---|---|---|
-| Local unit/contract/UI tests | PASS, 30/30 | `python -m unittest discover -s tests -v` |
+| Local unit/contract/UI tests | PASS, 41/41 | `python -m unittest discover -s tests -v` |
 | Six-page Streamlit smoke | PASS | Official AppTest harness over stable contract-shaped frames |
 | Repository secret scan | PASS, 92 tracked and unignored files scanned | `scripts/scan_secrets.ps1` |
 | Snowflake validation | PASS, 28/28 | Query IDs listed in `COCO_USAGE.md` |

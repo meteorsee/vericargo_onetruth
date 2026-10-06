@@ -46,6 +46,33 @@ CREATE TABLE IF NOT EXISTS APP.REVIEW_AUDIT_EVENTS (
 
 CREATE SEQUENCE IF NOT EXISTS APP.REVIEW_AUDIT_SEQUENCE START = 1 INCREMENT = 1;
 
+CREATE SEQUENCE IF NOT EXISTS APP.DOCUMENT_INTAKE_SEQUENCE START = 1 INCREMENT = 1;
+
+CREATE TABLE IF NOT EXISTS APP.DOCUMENT_INTAKE_EVENTS (
+  INTAKE_ID VARCHAR NOT NULL,
+  SHIPMENT_ID VARCHAR NOT NULL,
+  DECLARED_DOCUMENT_TYPE VARCHAR NOT NULL,
+  ORIGINAL_FILENAME VARCHAR NOT NULL,
+  SAFE_FILENAME VARCHAR NOT NULL,
+  CONTENT_TYPE VARCHAR,
+  SIZE_BYTES NUMBER(38, 0) NOT NULL,
+  SHA256 VARCHAR NOT NULL,
+  STAGE_PATH VARCHAR,
+  STAGE_STATUS VARCHAR NOT NULL,
+  CLIENT_VALIDATION VARCHAR NOT NULL,
+  VERIFICATION_STATUS VARCHAR NOT NULL,
+  MATCHED_DOCUMENT_ID VARCHAR,
+  MATCHED_SHIPMENT_ID VARCHAR,
+  MATCHED_DOCUMENT_TYPE VARCHAR,
+  PROCESSING_MODE VARCHAR NOT NULL,
+  STATUS_NOTE VARCHAR NOT NULL,
+  ERROR_DETAILS VARCHAR,
+  VIEWER_IDENTITY VARCHAR NOT NULL,
+  CREATED_BY VARCHAR NOT NULL,
+  CREATED_AT TIMESTAMP_LTZ NOT NULL,
+  CONSTRAINT DOCUMENT_INTAKE_EVENTS_PK PRIMARY KEY (INTAKE_ID)
+);
+
 -- Make upgrades safe for cases created before the append-only audit contract existed,
 -- or by an interrupted deployment immediately before its audit insert.
 INSERT INTO APP.REVIEW_AUDIT_EVENTS
@@ -217,23 +244,134 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE CORTEX SEARCH SERVICE CURATED.DOCUMENT_SEARCH
-  ON content
-  ATTRIBUTES document_id, shipment_id, document_type, relative_path, source_location
-  WAREHOUSE = VERICARGO_WH
-  TARGET_LAG = '1 minute'
+CREATE OR REPLACE PROCEDURE APP.RECORD_DOCUMENT_INTAKE(
+  P_SHIPMENT_ID VARCHAR,
+  P_DOCUMENT_TYPE VARCHAR,
+  P_ORIGINAL_FILENAME VARCHAR,
+  P_SAFE_FILENAME VARCHAR,
+  P_CONTENT_TYPE VARCHAR,
+  P_SIZE_BYTES NUMBER,
+  P_SHA256 VARCHAR,
+  P_STAGE_PATH VARCHAR,
+  P_STAGE_STATUS VARCHAR,
+  P_CLIENT_VALIDATION VARCHAR,
+  P_ERROR_DETAILS VARCHAR,
+  P_VIEWER_IDENTITY VARCHAR
+)
+RETURNS VARIANT
+LANGUAGE SQL
+EXECUTE AS CALLER
 AS
-SELECT
-  document_id,
-  shipment_id,
-  document_type,
-  relative_path,
-  source_location,
-  content
-FROM CURATED.DOCUMENT_SEARCH_CORPUS;
+$$
+DECLARE
+  known_shipment_count INTEGER;
+  matched_count INTEGER;
+  matched_document_id VARCHAR;
+  matched_shipment_id VARCHAR;
+  matched_document_type VARCHAR;
+  existing_intake_id VARCHAR;
+  new_intake_id VARCHAR;
+  verification_status VARCHAR;
+  status_note VARCHAR;
+  clean_viewer_identity VARCHAR;
+BEGIN
+  clean_viewer_identity := COALESCE(
+    NULLIF(LEFT(TRIM(P_VIEWER_IDENTITY), 255), ''),
+    'UNKNOWN_VIEWER'
+  );
+  SELECT COUNT(*) INTO :known_shipment_count
+  FROM RAW.SHIPMENTS WHERE shipment_id = :P_SHIPMENT_ID;
+  IF (known_shipment_count <> 1) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Unknown shipment ID.');
+  END IF;
+  IF (UPPER(COALESCE(P_DOCUMENT_TYPE, '')) NOT IN ('SI', 'DRAFT_BL')) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Document type must be SI or DRAFT_BL.');
+  END IF;
+  IF (P_SIZE_BYTES < 0 OR P_SIZE_BYTES > 209715200) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Invalid uploaded file size.');
+  END IF;
+  IF (UPPER(COALESCE(P_CLIENT_VALIDATION, '')) = 'VALID_PDF'
+      AND (P_SIZE_BYTES < 1 OR P_SIZE_BYTES > 10485760)) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Valid PDFs must be between 1 byte and 10 MB.');
+  END IF;
+  IF (NOT REGEXP_LIKE(LOWER(COALESCE(P_SHA256, '')), '^[0-9a-f]{64}$')) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Invalid SHA-256 digest.');
+  END IF;
+  IF (LENGTH(COALESCE(P_SAFE_FILENAME, '')) < 5 OR LENGTH(P_SAFE_FILENAME) > 255) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Invalid safe filename.');
+  END IF;
+  IF (UPPER(COALESCE(P_STAGE_STATUS, '')) NOT IN ('STAGED', 'NOT_STAGED', 'FAILED')) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Invalid stage status.');
+  END IF;
+  IF (UPPER(COALESCE(P_CLIENT_VALIDATION, '')) NOT IN (
+      'VALID_PDF', 'EMPTY_FILE', 'TOO_LARGE', 'INVALID_EXTENSION',
+      'INVALID_CONTENT_TYPE', 'INVALID_PDF_SIGNATURE', 'MISSING_PDF_EOF', 'STAGE_FAILED')) THEN
+    RETURN OBJECT_CONSTRUCT('status', 'REJECTED', 'message', 'Invalid client validation status.');
+  END IF;
+
+  SELECT COUNT(*), MAX(document_id), MAX(shipment_id), MAX(document_type)
+    INTO :matched_count, :matched_document_id, :matched_shipment_id, :matched_document_type
+  FROM RAW.DOCUMENT_FILE_REGISTRY
+  WHERE sha256 = LOWER(:P_SHA256);
+
+  SELECT MAX(intake_id) INTO :existing_intake_id
+  FROM APP.DOCUMENT_INTAKE_EVENTS
+  WHERE shipment_id = :P_SHIPMENT_ID
+    AND declared_document_type = UPPER(:P_DOCUMENT_TYPE)
+    AND sha256 = LOWER(:P_SHA256)
+    AND stage_status = 'STAGED';
+  IF (existing_intake_id IS NOT NULL) THEN
+    RETURN OBJECT_CONSTRUCT(
+      'status', 'DUPLICATE', 'intake_id', existing_intake_id,
+      'message', 'This exact file is already staged for the selected shipment and document type.'
+    );
+  END IF;
+
+  IF (UPPER(P_CLIENT_VALIDATION) <> 'VALID_PDF' OR UPPER(P_STAGE_STATUS) <> 'STAGED') THEN
+    verification_status := 'REJECTED';
+    status_note := 'File-level validation or Snowflake staging failed; governed evidence was not changed.';
+  ELSEIF (matched_count = 0) THEN
+    verification_status := 'VALID_UNREGISTERED';
+    status_note := 'Structurally valid PDF staged in quarantine; content verification is unavailable on this trial account.';
+  ELSEIF (matched_count = 1 AND matched_shipment_id = P_SHIPMENT_ID
+      AND matched_document_type = UPPER(P_DOCUMENT_TYPE)) THEN
+    verification_status := 'VERIFIED_REGISTERED';
+    status_note := 'Checksum, shipment binding, and document type match a registered synthetic demonstration file.';
+  ELSE
+    verification_status := 'CONTEXT_MISMATCH';
+    status_note := 'Checksum matches a registered file, but the selected shipment or document type does not match.';
+  END IF;
+
+  SELECT 'INT-' || LPAD(APP.DOCUMENT_INTAKE_SEQUENCE.NEXTVAL::VARCHAR, 8, '0')
+    INTO :new_intake_id;
+  INSERT INTO APP.DOCUMENT_INTAKE_EVENTS (
+    intake_id, shipment_id, declared_document_type, original_filename, safe_filename,
+    content_type, size_bytes, sha256, stage_path, stage_status, client_validation,
+    verification_status, matched_document_id, matched_shipment_id,
+    matched_document_type, processing_mode, status_note, error_details,
+    viewer_identity, created_by, created_at
+  ) VALUES (
+    :new_intake_id, :P_SHIPMENT_ID, UPPER(:P_DOCUMENT_TYPE), :P_ORIGINAL_FILENAME,
+    :P_SAFE_FILENAME, :P_CONTENT_TYPE, :P_SIZE_BYTES, LOWER(:P_SHA256), :P_STAGE_PATH,
+    UPPER(:P_STAGE_STATUS), UPPER(:P_CLIENT_VALIDATION), :verification_status,
+    :matched_document_id, :matched_shipment_id, :matched_document_type,
+    'INTAKE_ONLY', :status_note, LEFT(:P_ERROR_DETAILS, 2000),
+    :clean_viewer_identity,
+    CURRENT_USER(), CURRENT_TIMESTAMP()
+  );
+  RETURN OBJECT_CONSTRUCT_KEEP_NULL(
+    'status', 'RECORDED', 'intake_id', new_intake_id,
+    'verification_status', verification_status, 'message', status_note,
+    'matched_document_id', matched_document_id,
+    'matched_shipment_id', matched_shipment_id,
+    'matched_document_type', matched_document_type,
+    'stage_path', P_STAGE_PATH
+  );
+END;
+$$;
 
 CREATE OR REPLACE AGENT APP.VERICARGO_AGENT
-  COMMENT = 'Governed supply-chain analytics and evidence agent for VeriCargo OneTruth'
+  COMMENT = 'Governed supply-chain analytics and structured evidence agent for VeriCargo OneTruth'
   PROFILE = '{"display_name":"VeriCargo OneTruth","color":"blue"}'
   FROM SPECIFICATION
   $$
@@ -250,7 +388,7 @@ CREATE OR REPLACE AGENT APP.VERICARGO_AGENT
 
   instructions:
     response: "Answer concisely. Name the governed metric, grain, filters, time window, and USD currency assumption when relevant. Cite document source filenames. If evidence is missing, ambiguous, or unreadable, say so and recommend human review; never invent a value."
-    orchestration: "Use SupplyChainAnalyst for governed KPI and entity questions. Use DocumentEvidence for SI or bill-of-lading content and explanations. Use ProposeReviewCase only to validate a review recommendation; it never writes data. Never claim that a case was created. The Streamlit application alone obtains explicit confirmation and performs the mutating call. Pass the exact source question into source_question."
+    orchestration: "Use SupplyChainAnalyst for governed KPI, entity, exception, and structured SI or bill-of-lading evidence questions. For document evidence, query the documents table and cite relative_path. Use ProposeReviewCase only to validate a review recommendation; it never writes data. Never claim that a case was created. The Streamlit application alone obtains explicit confirmation and performs the mutating call. Pass the exact source question into source_question."
     sample_questions:
       - question: "What is our on-time delivery rate?"
       - question: "Why is SHP-1002 in exception? Cite the source documents."
@@ -261,10 +399,6 @@ CREATE OR REPLACE AGENT APP.VERICARGO_AGENT
         type: "cortex_analyst_text_to_sql"
         name: "SupplyChainAnalyst"
         description: "Queries governed supply-chain entities and canonical metrics."
-    - tool_spec:
-        type: "cortex_search"
-        name: "DocumentEvidence"
-        description: "Searches parsed Shipping Instruction and Draft Bill of Lading evidence."
     - tool_spec:
         type: "generic"
         name: "ProposeReviewCase"
@@ -303,13 +437,6 @@ CREATE OR REPLACE AGENT APP.VERICARGO_AGENT
         type: "warehouse"
         warehouse: "VERICARGO_WH"
         query_timeout: 60
-    DocumentEvidence:
-      search_service: "VERICARGO_ONETRUTH.CURATED.DOCUMENT_SEARCH"
-      max_results: "5"
-      title_column: "RELATIVE_PATH"
-      id_column: "DOCUMENT_ID"
-      stage_path: "@VERICARGO_ONETRUTH.RAW.DOCUMENT_STAGE"
-      relative_path_column: "RELATIVE_PATH"
     ProposeReviewCase:
       type: "procedure"
       identifier: "VERICARGO_ONETRUTH.APP.PROPOSE_REVIEW_CASE"

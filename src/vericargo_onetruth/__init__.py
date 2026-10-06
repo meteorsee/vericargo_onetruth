@@ -2,22 +2,22 @@
 
 from .document_comparison import compare_documents
 from .metrics import canonical_metrics
-from .risk import RiskResult, calculate_risk
 from .review import (
     ReviewCaseRequest,
     ensure_no_active_duplicate,
     validate_case_transition,
     validate_review_case,
 )
+from .risk import RiskResult, calculate_risk
 
 __all__ = [
     "ReviewCaseRequest",
-    "canonical_metrics",
-    "compare_documents",
     "RiskResult",
     "calculate_risk",
-    "validate_review_case",
-    "validate_case_transition",
+    "canonical_metrics",
+    "compare_documents",
     "ensure_no_active_duplicate",
+    "validate_case_transition",
+    "validate_review_case",
 ]
 

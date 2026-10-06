@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from html import escape
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -135,8 +136,10 @@ def render_decision_brief(
     shipment: pd.Series,
     evidence: pd.DataFrame,
     findings: pd.DataFrame,
+    *,
+    show_investigate_action: bool = True,
 ) -> None:
-    """Render the data-backed contradiction before portfolio analytics."""
+    """Render the full evidence-backed brief for one shipment."""
 
     shipment_id = str(shipment["SHIPMENT_ID"])
     destination = _evidence_row(evidence, "PORT_OF_DISCHARGE")
@@ -154,6 +157,12 @@ def render_decision_brief(
         "MISSING": "required document missing",
         "UNRESOLVED": "document evidence unresolved",
     }.get(document_outcome, "document status unavailable")
+    gate_decision = {
+        "MATCH": "CLEAR · documents aligned",
+        "MISMATCH": "HOLD · correction required",
+        "MISSING": "UNRESOLVED · document missing",
+        "UNRESOLVED": "UNRESOLVED · human check required",
+    }.get(document_outcome, "UNRESOLVED · status unavailable")
     origin = shipment.get("ORIGIN_PORT_NAME", shipment.get("ORIGIN_PORT_CODE"))
     destination_name = shipment.get(
         "DESTINATION_PORT_NAME", shipment.get("DESTINATION_PORT_CODE")
@@ -201,28 +210,33 @@ def render_decision_brief(
         )
 
         governed.markdown("**Governed result**")
+        governed.markdown(f"**{gate_decision}**")
         governed.metric("Risk", risk)
         governed.caption(
             f"{exception_count} linked finding(s)  \n"
             f"{review_message}"
         )
 
-        investigate, inspect, ask = st.columns(3)
-        investigate.button(
-            "Investigate shipment →",
-            type="primary",
-            width="stretch",
-            on_click=open_context,
-            args=("Shipment Intelligence", shipment_id),
-        )
-        inspect.button(
+        actions = st.columns(3 if show_investigate_action else 2)
+        action_index = 0
+        if show_investigate_action:
+            actions[action_index].button(
+                "Investigate shipment →",
+                type="primary",
+                width="stretch",
+                on_click=open_context,
+                args=("Shipment Intelligence", shipment_id),
+            )
+            action_index += 1
+        actions[action_index].button(
             "View source evidence",
             width="stretch",
             on_click=open_context,
             args=("Document Evidence", shipment_id),
         )
-        ask.button(
+        actions[action_index + 1].button(
             "Ask OneTruth",
+            type="primary" if not show_investigate_action else "secondary",
             width="stretch",
             on_click=open_context,
             args=(
@@ -230,6 +244,40 @@ def render_decision_brief(
                 shipment_id,
                 copilot_question,
             ),
+        )
+
+
+def render_selected_shipment_preview(
+    shipment: pd.Series,
+    findings: pd.DataFrame,
+) -> None:
+    """Render a compact shipment-scoped preview beneath portfolio analytics."""
+
+    shipment_id = str(shipment["SHIPMENT_ID"])
+    exception_count = len(findings)
+    with st.container(border=True):
+        heading, action = st.columns([4, 1])
+        heading.subheader(f"{shipment_id} · Selected shipment")
+        heading.caption(
+            f"{shipment.get('ORIGIN_PORT_CODE')} → {shipment.get('DESTINATION_PORT_CODE')} · "
+            "This preview follows the active shipment context."
+        )
+        action.button(
+            "Investigate →",
+            type="primary",
+            width="stretch",
+            on_click=open_context,
+            args=("Shipment Intelligence", shipment_id),
+        )
+
+        delivery, documents, risk, exceptions = st.columns(4)
+        delivery.metric("Delivery", _delivery_summary(shipment))
+        documents.metric("Documents", humanize(shipment.get("DOCUMENT_OUTCOME")))
+        risk.metric("Risk", humanize(shipment.get("RISK_SEVERITY")))
+        exceptions.metric("Open findings", exception_count)
+        st.caption(
+            "Shipment-specific values change with the active context. "
+            "Open Shipment Intelligence for the full evidence-backed Decision Brief."
         )
 
 

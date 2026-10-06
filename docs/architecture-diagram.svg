@@ -88,7 +88,7 @@
   </g>
 
   <!-- Input cards -->
-  <text x="84" y="292" class="eyebrow" fill="#637083">SYNTHETIC INPUTS</text>
+  <text x="84" y="292" class="eyebrow" fill="#637083">SYNTHETIC + USER INPUTS</text>
   <g filter="url(#softShadow)">
     <rect x="84" y="323" width="224" height="102" rx="14" fill="#fff" stroke="#dbe3ec"/>
     <rect x="84" y="323" width="7" height="102" rx="3.5" fill="#0b57d0"/>
@@ -100,8 +100,8 @@
     <rect x="84" y="500" width="224" height="102" rx="14" fill="#fff" stroke="#dbe3ec"/>
     <rect x="84" y="500" width="7" height="102" rx="3.5" fill="#f28c28"/>
     <text x="109" y="529" class="node-title">Shipping documents</text>
-    <text x="109" y="553" class="node-copy">Shipping Instructions</text>
-    <text x="109" y="573" class="node-copy">Draft Bills of Lading · PDFs</text>
+    <text x="109" y="553" class="node-copy">Synthetic SI / Draft BL</text>
+    <text x="109" y="573" class="node-copy">User PDFs · quarantined</text>
     <text x="109" y="592" class="tech" fill="#e97919">UNSTRUCTURED</text>
   </g>
 
@@ -112,8 +112,8 @@
     <text x="400" y="383" class="node-title">RAW tables</text>
     <text x="400" y="406" class="node-copy">Source-faithful records</text>
     <rect x="382" y="531" width="168" height="72" rx="12" fill="#fff" stroke="#bfdaef"/>
-    <text x="400" y="560" class="node-title">Document stage</text>
-    <text x="400" y="583" class="node-copy">PDFs + source location</text>
+    <text x="400" y="560" class="node-title">Document stages</text>
+    <text x="400" y="583" class="node-copy">Source + hash/audit intake</text>
   </g>
 
   <!-- Snowflake cards: process -->
@@ -150,8 +150,8 @@
     <text x="1056" y="381" class="tech">SUPPLY_CHAIN_</text>
     <text x="1056" y="401" class="tech">SEMANTIC_VIEW</text>
     <rect x="1038" y="531" width="194" height="72" rx="12" fill="#fff" stroke="#8dbde4"/>
-    <text x="1056" y="560" class="node-title">Cortex Search</text>
-    <text x="1056" y="583" class="node-copy">Cited document evidence</text>
+    <text x="1056" y="560" class="node-title">Evidence retrieval</text>
+    <text x="1056" y="583" class="node-copy">Semantic View Â· Search optional</text>
   </g>
 
   <!-- Agent -->

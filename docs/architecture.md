@@ -29,16 +29,24 @@ flowchart LR
   S[Synthetic ERP, logistics, inventory, cost CSVs] --> R[Snowflake RAW]
   D[Synthetic SI and Draft BL PDFs] --> ST[Snowflake document stage]
   R --> DT[Dynamic-table transformations]
-  ST --> P[AI_PARSE_DOCUMENT and AI_EXTRACT]
-  P --> C[Deterministic field comparison]
+  ST --> MODE{Document processing mode}
+  MODE -->|Entitled account| P[AI_PARSE_DOCUMENT and AI_EXTRACT]
+  MODE -->|Event trial account| FX[Disclosed deterministic extraction fixtures]
+  P --> E[Field-level evidence]
+  FX --> E
+  E --> C[Deterministic field comparison]
   DT --> M[Curated metric marts]
   C --> X[Document exceptions]
   M --> SP[Snowpark shipment-risk features]
   X --> SP
   SP --> SV
   M --> SV[SUPPLY_CHAIN_SEMANTIC_VIEW]
-  X --> CS[Cortex Search]
+  E --> SV
+  X --> SV
   SV --> A[VERICARGO_AGENT]
+  X --> RM{Evidence retrieval mode}
+  RM -->|Event trial| SV
+  RM -->|Entitled account| CS[Optional Cortex Search]
   CS --> A
   A -->|answer + non-mutating proposal| UI[Six-page Streamlit control tower]
   UI -->|explicit confirmation| T[CREATE_REVIEW_CASE]
@@ -46,6 +54,15 @@ flowchart LR
   Q --> U[UPDATE_REVIEW_CASE]
   U --> AU[Append-only audit history]
 ```
+
+The judged event-account UI does not expose arbitrary PDF upload. A quarantine-intake
+backend remains in source as future work, but it cannot promote or analyze unknown files
+without document-extraction entitlement.
+
+In the event trial runtime, Analyst retrieves structured SI/Draft BL fields, processing
+status, errors, confidence and source filenames directly through the semantic view. On an
+entitled account, the optional Search service adds embedding-based retrieval across the
+document evidence corpus without changing the application or review contracts.
 
 ## Canonical metrics
 

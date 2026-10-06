@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
 .venv/
 venv/
 .env
@@ -15,4 +19,39 @@ build/
 *.egg-info/
 app/output/
 docs/coco-evidence/private/
+
+# Local Snowflake / CoCo state (retain the public reusable skill and approved plan only)
+.snowflake/config.toml
+.snowflake/logs/
+.snowflake/history/
+.cortex/cache/
+.cortex/logs/
+.cortex/sessions/
+.cortex/transcripts/
+
+# Private or local-only submission material
+sample/
+recordings/
+submission-confirmation/
+ORGANIZER_EMAIL.md
+Prototype Submission Template _ CoCo CLI Hackathon GCC Edition.pptx
+VeriCargo_OneTruth_Prototype_Deck.pptx
+scripts/build_submission_deck.ps1
+docs/vericargo-onetruth-architecture-4k.png
+docs/vericargo-onetruth-architecture-4k.prompt.md
+docs/baseline_validation.md
+docs/current_state_audit.md
+docs/implementation-checkpoints.md
+docs/regression_results.md
+docs/submission-checklist.md
+
+# Screen recordings and common editor / OS artifacts
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.log
+~$*.pptx
+.DS_Store
+Thumbs.db
 

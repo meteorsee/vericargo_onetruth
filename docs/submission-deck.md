@@ -32,10 +32,16 @@ delivery rate, fill rate, days of inventory, and USD landed cost.
 - Internal stages and raw tables for structured CSV and synthetic SI / Draft BL PDFs
 - Dynamic tables for shipment, order-line, inventory, and cost marts
 - Snowpark Python transformation for joined delivery/document risk features
-- `AI_PARSE_DOCUMENT` plus scored `AI_EXTRACT`, deterministic comparison, and safe failure
+- Account-aware document pipeline: native `AI_PARSE_DOCUMENT` plus scored `AI_EXTRACT`
+  when entitled; disclosed deterministic extraction fixtures on the event trial account;
+  the same comparison and safe-failure contracts downstream
 - Native `SUPPLY_CHAIN_SEMANTIC_VIEW` with synonyms and verified questions
-- `VERICARGO_AGENT`: Cortex Analyst + Cortex Search + non-mutating review proposal
+- Event-account `VERICARGO_AGENT`: Cortex Analyst over governed metrics and structured
+  document/source evidence + non-mutating review proposal. Cortex Search is an optional
+  entitled-account enhancement because the event trial blocks its embedding model.
 - Six connected Streamlit pages with persistent shipment context and guarded review writes
+- Judge-facing scope uses staged synthetic SI / Draft BL scenarios; arbitrary upload is not
+  exposed because the event trial cannot extract and validate a newly supplied PDF
 
 ## Slide 5 - One metric, three personas
 
@@ -80,7 +86,7 @@ Evidence:
 | Planning | Session `4ce0a356-74a1-401e-aa0b-998211484090`; approved plan in `.cortex/plans/plan_2026-09-27_1231.md` |
 | Development | Session `b46b47a1-4baa-44dc-aeb8-0091f741b386`; Korean port-alias parity fix; checkpoint commit `1b248fe` |
 | Execution | Sessions `b46b47a1-4baa-44dc-aeb8-0091f741b386` and `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`; deployed app FQN `VERICARGO_ONETRUTH.APP.VERICARGO_ONETRUTH_APP` |
-| Testing and repair | 23/23 local tests; 28/28 Snowflake checks; failed `01c75ef2-3203-736a-0018-686a0007323a`, fixed and verified `01c75ef6-3203-7356-0018-686a0006f1ca` |
+| Testing and repair | 41/41 current local tests; 23/23 in the retained CoCo session; 28/28 prior Snowflake checks; failed `01c75ef2-3203-736a-0018-686a0007323a`, fixed and verified `01c75ef6-3203-7356-0018-686a0006f1ca` |
 | Ingenuity | Governance skill invoked in session `fb9d4d4d-ec13-4d7d-bc9b-426c5cfa14d4`; fallback Task run `01c762ea-3203-7595-0018-686a000af0c6` |
 
 Do not use the initial Codex scaffold as CoCo evidence.

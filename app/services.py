@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Any
 
 import streamlit as st
@@ -11,6 +14,44 @@ import streamlit as st
 AGENT_NAME = "VERICARGO_ONETRUTH.APP.VERICARGO_AGENT"
 DB = "VERICARGO_ONETRUTH"
 READ_CACHE_TTL_SECONDS = 45
+MAX_DOCUMENT_UPLOAD_BYTES = 10 * 1024 * 1024
+ALLOWED_PDF_CONTENT_TYPES = {"", "application/pdf", "application/octet-stream"}
+
+
+def inspect_pdf_upload(filename: str, content_type: str | None, payload: bytes) -> dict[str, Any]:
+    """Perform deterministic file-level validation without claiming content extraction."""
+
+    original_name = str(filename or "")
+    basename = original_name.replace("\\", "/").rsplit("/", maxsplit=1)[-1]
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", basename).strip("._")
+    safe_name = (safe_name or "upload.pdf")[:255]
+    digest = hashlib.sha256(payload).hexdigest()
+    media_type = str(content_type or "").lower().split(";", maxsplit=1)[0].strip()
+
+    validation = "VALID_PDF"
+    message = "PDF signature and end marker are valid."
+    if not payload:
+        validation, message = "EMPTY_FILE", "The uploaded file is empty."
+    elif len(payload) > MAX_DOCUMENT_UPLOAD_BYTES:
+        validation, message = "TOO_LARGE", "The upload exceeds the governed 10 MB intake limit."
+    elif not basename.lower().endswith(".pdf"):
+        validation, message = "INVALID_EXTENSION", "Only PDF files are accepted."
+    elif media_type not in ALLOWED_PDF_CONTENT_TYPES:
+        validation, message = "INVALID_CONTENT_TYPE", "The browser did not identify this as a PDF."
+    elif not payload.startswith(b"%PDF-"):
+        validation, message = "INVALID_PDF_SIGNATURE", "The file does not contain a PDF signature."
+    elif b"%%EOF" not in payload[-4096:]:
+        validation, message = "MISSING_PDF_EOF", "The PDF is incomplete or unreadable."
+
+    return {
+        "original_filename": original_name,
+        "safe_filename": safe_name,
+        "content_type": media_type,
+        "size_bytes": len(payload),
+        "sha256": digest,
+        "client_validation": validation,
+        "message": message,
+    }
 
 
 @st.cache_data(ttl=READ_CACHE_TTL_SECONDS, show_spinner=False)
@@ -95,6 +136,78 @@ class OneTruthService:
             cache=True,
         )
 
+    def document_intake(self, shipment_id: str | None = None):
+        if shipment_id:
+            return self.frame(
+                f"SELECT * FROM {DB}.APP.VW_DOCUMENT_INTAKE "
+                "WHERE shipment_id = ? ORDER BY created_at DESC",
+                [shipment_id],
+            )
+        return self.frame(
+            f"SELECT * FROM {DB}.APP.VW_DOCUMENT_INTAKE ORDER BY created_at DESC"
+        )
+
+    def upload_and_verify_document(
+        self,
+        shipment_id: str,
+        document_type: str,
+        filename: str,
+        content_type: str | None,
+        payload: bytes,
+        viewer_identity: str = "UNKNOWN_VIEWER",
+    ) -> dict[str, Any]:
+        """Validate, quarantine-stage, and audit an uploaded PDF."""
+
+        inspection = inspect_pdf_upload(filename, content_type, payload)
+        stage_path: str | None = None
+        stage_status = "NOT_STAGED"
+        error_details: str | None = None
+        client_validation = str(inspection["client_validation"])
+
+        if client_validation == "VALID_PDF":
+            stage_filename = (
+                f"{inspection['sha256'][:16]}_{inspection['safe_filename']}"
+            )
+            stage_path = (
+                f"@{DB}.RAW.DOCUMENT_INTAKE_STAGE/"
+                f"{shipment_id}/{document_type}/{stage_filename}"
+            )
+            try:
+                self.session.file.put_stream(
+                    BytesIO(payload),
+                    stage_path,
+                    auto_compress=False,
+                    source_compression="NONE",
+                    overwrite=False,
+                )
+                stage_status = "STAGED"
+            except Exception as exc:  # noqa: BLE001
+                stage_status = "FAILED"
+                client_validation = "STAGE_FAILED"
+                error_details = f"{type(exc).__name__}: {exc}"[:2000]
+
+        result = parse_variant(
+            self.session.call(
+                f"{DB}.APP.RECORD_DOCUMENT_INTAKE",
+                shipment_id,
+                document_type,
+                inspection["original_filename"],
+                inspection["safe_filename"],
+                inspection["content_type"],
+                inspection["size_bytes"],
+                inspection["sha256"],
+                stage_path,
+                stage_status,
+                client_validation,
+                error_details or inspection["message"],
+                viewer_identity,
+            )
+        )
+        result["inspection"] = inspection
+        result["stage_status"] = stage_status
+        result["stage_error"] = error_details
+        return result
+
     def exceptions(self, shipment_id: str | None = None):
         if shipment_id:
             return self.frame(
@@ -130,6 +243,12 @@ class OneTruthService:
 
     def governance_status(self):
         return self.frame(f"SELECT * FROM {DB}.APP.VW_GOVERNANCE_STATUS ORDER BY check_name")
+
+    def automation_status(self):
+        return self.frame(
+            f"SELECT * FROM {DB}.APP.VW_AUTOMATION_STATUS",
+            cache=True,
+        )
 
     def run_agent(self, question: str, shipment_id: str | None = None) -> dict[str, Any]:
         context = (

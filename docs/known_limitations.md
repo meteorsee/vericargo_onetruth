@@ -8,6 +8,16 @@
   and ambiguous scenarios; it is not a volume or performance benchmark.
 - Source page/location is nullable because the current document APIs do not persist a
   reliable page coordinate for every extracted field.
+- The event-provided `WH80281` account is classified by Snowflake as a trial account and
+  rejects both `AI_PARSE_DOCUMENT` and `AI_EXTRACT`. The deployment therefore uses the
+  disclosed `FIXTURE` document-processing mode: deterministic extracted fields generated
+  from the same team-authored synthetic PDFs. The native `AI` procedure remains in source
+  for entitled accounts, but it is not claimed as the runtime used by this deployment.
+- The same event trial rejects `EMBED_TEXT_768`, which Cortex Search invokes while indexing.
+  The submitted runtime therefore uses `EVIDENCE_RETRIEVAL_MODE=SEMANTIC_VIEW`: Cortex
+  Analyst queries governed structured document fields, confidence, errors and source
+  filenames. The optional Search-enabled Agent is retained under `snowflake/optional/` for
+  an entitled account and is not claimed as active in this trial deployment.
 
 ## Current integration boundary
 
@@ -22,25 +32,25 @@ The submission is not currently connected to:
 
 These are future integration possibilities, not demonstrated capabilities.
 
-## User-supplied files
+## Document intake boundary
 
-- The submitted MVP does not currently expose an upload control. Its source documents are
-  deployed synthetic fixtures so every judged scenario is deterministic and repeatable.
-- A production extension is feasible with Streamlit's `st.file_uploader`, which is generally
-  available in Streamlit in Snowflake. Uploaded bytes would be validated, checksummed and
-  written to `RAW.DOCUMENT_STAGE`; a manifest row would bind the file to a known shipment;
-  the existing parse, extract, compare, exception, Search and review pipeline would then run.
-- The upload path requires explicit file-size/type limits, duplicate handling, malware/content
-  controls, shipment authorization, audit events and a processing-status UI. It must not write
-  directly to curated tables or bypass the existing unresolved-evidence guardrail.
+- The judged Streamlit interface does not expose arbitrary PDF upload because the event
+  account cannot complete field extraction for a new document.
+- A governed quarantine-intake backend remains in source for future integration testing. It
+  can validate file structure, calculate SHA-256, stage bytes and append an audit event, but
+  it is not presented as a completed analysis capability.
+- The event trial still cannot perform native field extraction for an unknown upload because
+  both document-AI functions are blocked. Production promotion would require entitlement,
+  malware/content scanning, authorization policy, and an approved manifest-promotion step.
 - Snowflake documents a 200 MB default upload limit for warehouse-runtime Streamlit apps:
   https://docs.snowflake.com/en/developer-guide/streamlit/limitations
 
 ## Runtime and automation
 
 - Judges require access to the hackathon Snowflake account; there is no public hosted copy.
-- Hosted CoCo Automations were unavailable in the current trial environment. The verified
-  fallback is `APP.DAILY_EXCEPTION_DIGEST`, a Snowflake Task.
+- The organizer event account exposes hosted CoCo Automations. Creation and a manual run
+  still require completion evidence; `APP.DAILY_EXCEPTION_DIGEST` remains the deterministic
+  Snowflake Task fallback.
 - Live Agent responses depend on Cortex service availability and may be slower than the
   deterministic application views.
 - Stable read-only application views use a 45-second, single-session cache to make repeated

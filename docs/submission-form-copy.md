@@ -8,7 +8,7 @@ Select:
 
 ## Prototype/MVP Brief
 
-VeriCargo OneTruth is a Snowflake-native governed supply-chain intelligence and exception copilot. It unifies synthetic ERP, logistics, inventory, cost, Shipping Instruction and Draft Bill of Lading data through one ontology and semantic layer. Snowflake document AI extracts field-level evidence; deterministic rules preserve mismatches and failed extraction as reviewable exceptions instead of guesses. Cortex Analyst and Cortex Search answer governed questions with cited evidence. In Streamlit, users investigate SHP-1002, see a one-day delay plus destination and weight conflicts, receive a read-only review proposal, and explicitly confirm creation and resolution of an auditable case. CoCo CLI was used for planning, development, execution, testing and repair, governance-skill validation, and automation evidence. The MVP includes six connected pages, 30/30 local tests, 28/28 Snowflake checks, and a daily exception digest.
+VeriCargo OneTruth is a Snowflake-native governed supply-chain intelligence and exception copilot. It unifies synthetic ERP, logistics, inventory, cost, Shipping Instruction and Draft Bill of Lading data through one ontology and semantic layer. The document layer preserves field evidence, confidence, mismatches and failed extraction as reviewable exceptions instead of guesses. The event trial blocks document AI and Search embeddings, so the deployed runtime transparently uses deterministic extraction fixtures from the same team-authored PDFs and Cortex Analyst over governed structured evidence; native document AI and Cortex Search paths remain in source for entitled accounts. In Streamlit, users investigate SHP-1002, see a delay plus destination and weight conflicts, receive a read-only review proposal, then explicitly confirm and resolve an auditable case. CoCo CLI supports planning, development, execution, testing, repair and automation evidence.
 
 ## Demo video link
 
@@ -17,7 +17,7 @@ VeriCargo OneTruth is a Snowflake-native governed supply-chain intelligence and 
 The recording should visibly show:
 
 1. Input: synthetic structured shipment data plus SI and Draft BL documents.
-2. Processing: Snowflake ingestion, document extraction, deterministic comparison, governed metrics, Search and Agent reasoning.
+2. Processing: Snowflake ingestion, disclosed fixture extraction, deterministic comparison, governed metrics, Semantic View and Agent reasoning.
 3. Output: SHP-1002 explanation with both source filenames.
 4. Guardrail: an unconfirmed action performs no write.
 5. Controlled action: human-confirmed review creation, resolution and audit.

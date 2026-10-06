@@ -55,6 +55,58 @@ SELECT
 FROM orphan_counts
 ORDER BY check_name;
 
+-- Every deployed manifest document must have one deterministic fallback fixture.
+SELECT
+  'document:fixture_coverage' AS check_name,
+  IFF(
+    COUNT(*) = (SELECT COUNT(*) FROM RAW.DOCUMENT_MANIFEST)
+    AND COUNT(DISTINCT fixture.document_id) = COUNT(*),
+    'PASS',
+    'FAIL'
+  ) AS result,
+  COUNT(*) || ' fixture rows for '
+    || (SELECT COUNT(*) FROM RAW.DOCUMENT_MANIFEST) || ' manifest rows' AS details
+FROM RAW.DOCUMENT_EXTRACTION_FIXTURES fixture
+JOIN RAW.DOCUMENT_MANIFEST manifest
+  ON manifest.document_id = fixture.document_id;
+
+SELECT
+  'document:file_registry_coverage' AS check_name,
+  IFF(
+    COUNT(*) = (SELECT COUNT(*) FROM RAW.DOCUMENT_MANIFEST)
+    AND COUNT(DISTINCT registry.document_id) = COUNT(*)
+    AND COUNT_IF(NOT REGEXP_LIKE(registry.sha256, '^[0-9a-f]{64}$')) = 0
+    AND COUNT_IF(registry.size_bytes <= 0) = 0,
+    'PASS',
+    'FAIL'
+  ) AS result,
+  COUNT(*) || ' checksum registry row(s)' AS details
+FROM RAW.DOCUMENT_FILE_REGISTRY registry
+JOIN RAW.DOCUMENT_MANIFEST manifest
+  ON manifest.document_id = registry.document_id
+ AND manifest.shipment_id = registry.shipment_id
+ AND manifest.document_type = registry.document_type
+ AND manifest.relative_path = registry.relative_path;
+
+-- The default event-account path must not depend on blocked embedding functions.
+SELECT
+  'runtime:evidence_retrieval_mode' AS check_name,
+  IFF(config_value = 'SEMANTIC_VIEW', 'PASS', 'FAIL') AS result,
+  config_value || ' - ' || config_note AS details
+FROM RAW.RUNTIME_CONFIG
+WHERE config_key = 'EVIDENCE_RETRIEVAL_MODE';
+
+SELECT
+  'evidence:structured_document_sources' AS check_name,
+  IFF(
+    COUNT(*) = (SELECT COUNT(*) FROM RAW.DOCUMENT_MANIFEST)
+    AND COUNT_IF(relative_path IS NULL) = 0,
+    'PASS',
+    'FAIL'
+  ) AS result,
+  COUNT(*) || ' document row(s) with governed source filenames' AS details
+FROM CURATED.DOCUMENT_FIELDS;
+
 -- Duplicate business key checks. Every result must be PASS.
 WITH duplicate_counts AS (
   SELECT 'supplier_id' AS business_key, COUNT(*) AS failures

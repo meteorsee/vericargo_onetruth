@@ -19,7 +19,7 @@ The working MVP contains:
 - dynamic-table pipelines, a Snowpark shipment-risk transform, and four canonical metrics;
 - SI versus Draft BL parsing, extraction, normalization, comparison, and exception routing;
 - `SUPPLY_CHAIN_SEMANTIC_VIEW` with verified persona questions;
-- `VERICARGO_AGENT` combining Cortex Analyst, Cortex Search, and a non-mutating review proposal tool;
+- `VERICARGO_AGENT` combining Cortex Analyst over governed metrics and structured document evidence with a non-mutating review proposal tool;
 - a six-page connected Streamlit control tower with persistent shipment context;
 - explicit review confirmation, exception links, legal state transitions, and append-only audit;
 - a daily exception digest implemented as a Snowflake Task, plus a CoCo automation prompt;
@@ -37,8 +37,8 @@ team-owned background IP and is not the source of truth or runtime for this entr
 - Snowflake CLI (`snow`), either on `PATH` or installed in this repository's `.venv`
 - Snowflake CoCo CLI (`cortex`) with hackathon account access
 - A Snowflake role allowed to create databases, schemas, warehouses, stages, dynamic
-  tables, semantic views, Cortex Search services, agents, procedures, tasks, and Streamlit
-  applications
+  tables, semantic views, agents, procedures, tasks, and Streamlit applications. Cortex
+  Search privileges and AI-model entitlement are optional enhancements.
 - `SNOWFLAKE.CORTEX_USER` or `SNOWFLAKE.CORTEX_AGENT_USER` access as required by the
   account
 
@@ -88,8 +88,31 @@ The deployment helper generates the data, creates Snowflake objects, uploads CSV
 fixtures, processes documents, builds the semantic layer and agent, runs validation, and
 deploys Streamlit:
 
+The event trial account rejects `AI_PARSE_DOCUMENT` and `AI_EXTRACT`. For that account,
+`RAW.RUNTIME_CONFIG` defaults to the transparent `FIXTURE` processing mode, which loads
+deterministic fields generated from the team-authored synthetic PDFs. The original native
+`AI` procedure remains available in source for entitled Snowflake accounts; the deployed
+runtime must be described according to the configured mode shown on the Governance page.
+The same account also rejects the embedding model used by Cortex Search. The default
+deployment therefore exposes structured SI/Draft BL evidence and source filenames through
+`SUPPLY_CHAIN_SEMANTIC_VIEW` and Cortex Analyst. It does not create a Search service, so it
+does not call `EMBED_TEXT_768`.
+
+The judged Streamlit application intentionally does not expose arbitrary document upload.
+The event trial cannot extract and validate a newly supplied PDF, so the visible workflow
+uses the staged, team-authored synthetic SI / Draft BL scenarios and makes that boundary
+explicit. A quarantine-intake backend remains in source as future, non-demonstrated work.
+
 ```powershell
 .\scripts\deploy.ps1 -Connection YOUR_HACKATHON_CONNECTION
+```
+
+On a non-trial account entitled to Cortex Search, install the optional retrieval service
+and Search-enabled Agent only after the core deployment succeeds:
+
+```powershell
+.\.venv\Scripts\snow.exe sql -c YOUR_ENTITLED_CONNECTION `
+  -f .\snowflake\optional\06_search_and_agent_entitled.sql
 ```
 
 If PowerShell reports that script execution is disabled, invoke it without changing the
@@ -174,23 +197,17 @@ tests/                       Local acceptance tests
 
 ## Submission readiness
 
-Before submission, complete every unchecked item in `COCO_USAGE.md`, attach organizer
-eligibility/reuse confirmation, replace placeholder evidence with genuine CoCo captures,
-and ensure judges can access the repository and deployed Streamlit application.
+Before submission, complete every required item in `COCO_USAGE.md`, keep organizer
+eligibility/reuse correspondence outside the public repository, and ensure judges can
+access the repository and deployed Streamlit application.
 
-Use [`docs/submission-checklist.md`](docs/submission-checklist.md) for the hard gates and
-[`docs/submission-deck.md`](docs/submission-deck.md) for the judge-facing English deck copy.
-The latest executed checks are in [`docs/test-results.md`](docs/test-results.md), and the
-private account handoff steps are in [`docs/judge-access.md`](docs/judge-access.md).
+Use [`docs/submission-deck.md`](docs/submission-deck.md) for the judge-facing English deck
+copy. The latest executed checks are in [`docs/test-results.md`](docs/test-results.md), and
+the credential-free access instructions are in [`docs/judge-access.md`](docs/judge-access.md).
 
-The decision-first presentation pass is documented in:
+The public product and demonstration documentation includes:
 
-- [`docs/current_state_audit.md`](docs/current_state_audit.md): frozen implementation map;
-- [`docs/baseline_validation.md`](docs/baseline_validation.md): pre-change baseline;
 - [`docs/ui_flow.md`](docs/ui_flow.md): shared context and connected actions;
 - [`docs/demo_flow.md`](docs/demo_flow.md): complete judge journey and safe repeatability;
-- [`docs/regression_results.md`](docs/regression_results.md): post-change verification;
-- [`docs/implementation-checkpoints.md`](docs/implementation-checkpoints.md): phase-by-phase
-  completion and remaining live gates;
 - [`docs/known_limitations.md`](docs/known_limitations.md): honest integration/runtime boundary.
 
