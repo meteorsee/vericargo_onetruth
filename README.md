@@ -1,213 +1,198 @@
 # VeriCargo OneTruth
 
-**Governed Supply Chain Ontology and Exception Copilot**
+**A Snowflake-native pre-issuance document gate and governed supply-chain exception copilot.**
 
-VeriCargo OneTruth is a Snowflake-native hackathon project for Challenge 5: Supply Chain
-Ontology and Governed Conversational Analytics. It connects suppliers, parts, plants,
-orders, shipments, ports, inventory, landed costs, and shipping documents through one
-governed semantic layer.
+> One shipment. Two destinations. One governed truth.
 
-The judge-first product story is: **one shipment, two destinations, one governed truth**.
-For `SHP-1002`, the application connects a one-day delivery delay to conflicting SI and
-Draft BL destination/weight evidence, obtains a governed Agent explanation, and turns the
-finding into an explicitly confirmed, auditable human-review workflow.
+VeriCargo OneTruth addresses a common logistics failure: operational records, Shipping
+Instructions (SI), and Draft Bills of Lading (Draft BL) can disagree, while different teams
+also calculate delivery performance differently. The result is manual reconciliation,
+document amendments, delayed action, and no reliable audit trail.
 
-The working MVP contains:
+OneTruth connects operational and documentary evidence through one governed ontology. It
+detects contradictions, preserves both source values, explains the business context, and
+allows a human—not the conversational model—to confirm an auditable review action.
 
-- deterministic, referentially consistent synthetic supply-chain data;
-- Snowflake raw, curated, analytics, and application schemas;
-- dynamic-table pipelines, a Snowpark shipment-risk transform, and four canonical metrics;
-- SI versus Draft BL parsing, extraction, normalization, comparison, and exception routing;
-- `SUPPLY_CHAIN_SEMANTIC_VIEW` with verified persona questions;
-- `VERICARGO_AGENT` combining Cortex Analyst over governed metrics and structured document evidence with a non-mutating review proposal tool;
-- a six-page connected Streamlit control tower with persistent shipment context;
-- explicit review confirmation, exception links, legal state transitions, and append-only audit;
-- a daily exception digest implemented as a Snowflake Task, plus a CoCo automation prompt;
-- local unit tests and in-Snowflake validation queries.
+**Hackathon challenge:** Supply Chain Ontology and Governed Conversational Analytics
 
-## Important provenance boundary
+## Judge walkthrough
 
-This is a new repository and product core. The earlier VeriCargo Gmail extension is
-team-owned background IP and is not the source of truth or runtime for this entry. See
-[`BACKGROUND_IP.md`](BACKGROUND_IP.md) for the exact boundary.
+Use `SHP-1002` for the primary four-minute demonstration.
 
-## Prerequisites
+| Step | Where | What it proves |
+|---|---|---|
+| 1 | Control Tower | `SHP-1002` is high-risk with two governed findings. |
+| 2 | Shipment Intelligence | The Decision Brief returns **HOLD · correction required**. |
+| 3 | Document Evidence | SI destination `VNSGN` conflicts with Draft BL `THLCH`; weight is `8000` versus `7800` kg. |
+| 4 | OneTruth Copilot | The Agent explains the delay and mismatch and cites both source filenames. |
+| 5 | Human Review | Cancel writes nothing; Confirm creates one case linked to both exceptions. |
+| 6 | Governance | Definitions, runtime mode, automation status, and audit history remain visible. |
 
-- Python 3.11+
-- Snowflake CLI (`snow`), either on `PATH` or installed in this repository's `.venv`
-- Snowflake CoCo CLI (`cortex`) with hackathon account access
-- A Snowflake role allowed to create databases, schemas, warehouses, stages, dynamic
-  tables, semantic views, agents, procedures, tasks, and Streamlit applications. Cortex
-  Search privileges and AI-model entitlement are optional enhancements.
-- `SNOWFLAKE.CORTEX_USER` or `SNOWFLAKE.CORTEX_AGENT_USER` access as required by the
-  account
+The full recording sequence and narration are in
+[`docs/demo-script.md`](docs/demo-script.md). The submission deck is available as
+[`VeriCargo_OneTruth_Prototype_Deck.pdf`](VeriCargo_OneTruth_Prototype_Deck.pdf).
 
-Do not put credentials in this repository. Use a named Snowflake connection.
+## The decision flow
 
-## 1. Generate and test the synthetic fixture
+```text
+Operational shipment record ─┐
+Shipping Instruction ────────┼─> normalize and compare ─> CLEAR / HOLD / UNRESOLVED
+Draft Bill of Lading ────────┘                                │
+                                                              v
+                                              evidence-backed explanation
+                                                              │
+                                                              v
+                                                human-confirmed review
+                                                              │
+                                                              v
+                                                   append-only audit
+```
+
+The model never chooses which conflicting document is "true." OneTruth retains the
+contradiction and routes it to controlled resolution.
+
+## Working MVP
+
+- Synthetic but referentially consistent suppliers, parts, plants, customers, orders,
+  shipments, ports, events, inventory, cost, SI, and Draft BL data
+- Snowflake RAW, CURATED, ANALYTICS, and APP layers
+- Dynamic tables plus Snowpark shipment-risk features
+- Deterministic normalization and comparison for ports, weights, and container counts
+- Governed `MATCH`, `MISMATCH`, `MISSING`, `UNRESOLVED`, and `NOT_APPLICABLE` outcomes
+- Four canonical metrics: on-time delivery, fill rate, days of inventory, and USD landed cost
+- Native `SUPPLY_CHAIN_SEMANTIC_VIEW` with verified persona questions
+- `VERICARGO_AGENT` using Cortex Analyst over governed metrics and structured evidence
+- Six connected Streamlit pages sharing one shipment context
+- Explicit-confirmation review workflow, duplicate protection, legal transitions, and audit
+- Daily exception digest through a Snowflake Task fallback
+
+## Snowflake architecture
+
+![VeriCargo OneTruth architecture](docs/architecture-diagram.svg)
+
+The relationship path is:
+
+```text
+Supplier → Part → Plant → Order → Shipment → Container / Port → Customer
+```
+
+Documents, exceptions, review cases, and audit events attach to the governed shipment
+context. Streamlit reads stable `APP.VW_*` contracts rather than joining raw tables or
+embedding demonstration values in the interface.
+
+See [`docs/architecture.md`](docs/architecture.md) for the object and interaction flow.
+
+## Governed conversational analytics
+
+Operations, procurement, and planning can phrase the same delivery question differently.
+All three verified questions resolve to the same definition and result:
+
+```text
+On-time delivery = delivered on or before promise / delivered shipments
+Result           = 60.0% (3 on time / 5 delivered)
+Grain            = shipment
+Window           = all delivered synthetic shipments
+```
+
+The Agent is read-only for business mutations. It may explain evidence and propose a
+review, but only the Streamlit confirmation boundary calls the mutating procedure.
+
+## CoCo CLI contribution
+
+CoCo is the engineering copilot used across the delivery lifecycle; it is not a runtime
+document reader.
+
+| Phase | Demonstrated use |
+|---|---|
+| Plan | Ontology, metrics, architecture, guardrails, and acceptance tests |
+| Develop | SQL/Python review and Korean port-alias parity repair |
+| Execute | Snowflake objects, semantic layer, Agent, Task, and Streamlit deployment |
+| Test and repair | Failed-then-fixed evidence plus local and Snowflake regression checks |
+| Reuse | Supply-chain governance skill and daily exception-digest automation prompt |
+
+Real session IDs, query IDs, failures, fixes, and runtime boundaries are retained in
+[`COCO_USAGE.md`](COCO_USAGE.md). The approved plan and reusable skill are included under
+`.cortex/plans/` and `.snowflake/cortex/skills/`.
+
+## Transparent event-account boundary
+
+The organizer-provided Snowflake trial rejects `AI_PARSE_DOCUMENT`, `AI_EXTRACT`, and the
+embedding model required by Cortex Search. The submitted runtime therefore uses:
+
+- disclosed deterministic extraction fixtures generated from the same team-authored PDFs;
+- the same downstream normalization, comparison, exception, risk, and audit contracts;
+- Cortex Analyst over governed structured evidence and source filenames;
+- an optional native Document AI and Cortex Search path retained in source for entitled
+  Snowflake accounts.
+
+The judge-facing application does **not** claim to analyze arbitrary newly uploaded PDFs.
+Unknown or failed evidence is never converted into an invented fact. Active processing and
+retrieval modes are visible on the Governance page. Details are documented in
+[`docs/known_limitations.md`](docs/known_limitations.md).
+
+## Validation status
+
+- **41/41** local unit, contract, UI, and Streamlit smoke tests passing
+- **28/28** retained Snowflake validation checks passing
+- Three persona questions return the same governed OTD result
+- Match, mismatch, missing, unreadable, ambiguous, and low-confidence scenarios covered
+- Unknown shipment, unconfirmed action, duplicate active case, and illegal transition blocked
+- Repository secret scan passes; only synthetic business data is submitted
+
+Run the local suite:
 
 ```powershell
 python .\scripts\generate_data.py
 python -m unittest discover -s tests -v
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\scan_secrets.ps1
 ```
 
-The generator is deterministic and writes only to `data/generated/`. It includes matched,
-mismatched, missing, unreadable, and ambiguous SI/Draft BL scenarios.
+## Deployment
 
-## 2. Start the required CoCo planning session
+Prerequisites are Python 3.11+, Snowflake CLI, CoCo CLI, and a named Snowflake connection
+with the required object-creation privileges. Never store credentials in this repository.
 
-This repository was scaffolded before hackathon CoCo access was available. It must not be
-represented as CoCo-generated evidence. Before changing or deploying it, run a genuine
-CoCo planning and review session:
-
-```powershell
-cortex -w . -c YOUR_HACKATHON_CONNECTION --plan
-```
-
-If Windows has not refreshed `PATH`, or if this is the first connection setup, use the
-repository launcher instead:
-
-```powershell
-# First run: opens CoCo's connection picker/setup wizard.
-.\scripts\start_coco.cmd --check
-.\scripts\start_coco.cmd
-
-# Later runs: replace the value with the real connection name selected in the wizard.
-.\scripts\start_coco.cmd YOUR_REAL_CONNECTION_NAME
-```
-
-`YOUR_HACKATHON_CONNECTION` is documentation notation, not a literal connection name.
-
-Use the opening prompt in [`COCO_USAGE.md`](COCO_USAGE.md), approve the implementation
-plan, then switch to Agent mode and have CoCo inspect, revise, execute, and test the
-project. Record real session IDs, screenshots, commands, failures, fixes, and query IDs.
-
-## 3. Deploy the Snowflake objects
-
-The deployment helper generates the data, creates Snowflake objects, uploads CSV/PDF
-fixtures, processes documents, builds the semantic layer and agent, runs validation, and
-deploys Streamlit:
-
-The event trial account rejects `AI_PARSE_DOCUMENT` and `AI_EXTRACT`. For that account,
-`RAW.RUNTIME_CONFIG` defaults to the transparent `FIXTURE` processing mode, which loads
-deterministic fields generated from the team-authored synthetic PDFs. The original native
-`AI` procedure remains available in source for entitled Snowflake accounts; the deployed
-runtime must be described according to the configured mode shown on the Governance page.
-The same account also rejects the embedding model used by Cortex Search. The default
-deployment therefore exposes structured SI/Draft BL evidence and source filenames through
-`SUPPLY_CHAIN_SEMANTIC_VIEW` and Cortex Analyst. It does not create a Search service, so it
-does not call `EMBED_TEXT_768`.
-
-The judged Streamlit application intentionally does not expose arbitrary document upload.
-The event trial cannot extract and validate a newly supplied PDF, so the visible workflow
-uses the staged, team-authored synthetic SI / Draft BL scenarios and makes that boundary
-explicit. A quarantine-intake backend remains in source as future, non-demonstrated work.
+Deploy the core event-account-compatible solution:
 
 ```powershell
 .\scripts\deploy.ps1 -Connection YOUR_HACKATHON_CONNECTION
 ```
 
-On a non-trial account entitled to Cortex Search, install the optional retrieval service
-and Search-enabled Agent only after the core deployment succeeds:
-
-```powershell
-.\.venv\Scripts\snow.exe sql -c YOUR_ENTITLED_CONNECTION `
-  -f .\snowflake\optional\06_search_and_agent_entitled.sql
-```
-
-If PowerShell reports that script execution is disabled, invoke it without changing the
-machine-wide policy:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy.ps1 `
-  -Connection YOUR_REAL_CONNECTION_NAME -RunAgentTests
-```
-
-The helper is intentionally explicit: it stops on the first failed Snowflake command and
-does not hide partially deployed state. Run it from CoCo so execution evidence is captured.
-
 For external-browser OAuth environments that cannot cache credentials between Snow CLI
-processes, the equivalent one-login data-layer deployment is:
+processes:
 
 ```powershell
-python .\scripts\deploy_live.py --connection YOUR_REAL_CONNECTION_NAME
+python .\scripts\deploy_live.py --connection YOUR_HACKATHON_CONNECTION
 ```
 
-Use `--start-at 06b_application_views.sql` to resume safely after a repaired step, and
-`--only 09_agent_smoke_tests.sql` or `--only 10_workflow_smoke_tests.sql` for the optional
-Cortex and mutating workflow acceptance suites.
-
-To deploy step-by-step instead, run the SQL files in numeric order. Upload generated CSVs
-to `@VERICARGO_ONETRUTH.RAW.CSV_STAGE`, upload documents to
-`@VERICARGO_ONETRUTH.RAW.DOCUMENT_STAGE`, and run `02_load.sql` after both uploads.
-
-Create the read-only hosted CoCo automation after the core deployment:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  .\scripts\create_coco_automation.ps1 -Connection YOUR_REAL_CONNECTION_NAME
-```
-
-If the installed CoCo build exposes hosted Automations, run it once manually, inspect its
-transcript with `cortex automation doctor`, and record the real run/query ID. If the trial
-account cannot reach or authorize the Automations endpoint, record the real error and use
-the Snowflake Task installed by `07_automation.sql`; do not enable an experimental feature
-flag only for the submission demo.
-
-The fallback can be exercised without changing its schedule:
-
-```sql
-EXECUTE TASK VERICARGO_ONETRUTH.APP.DAILY_EXCEPTION_DIGEST;
-SELECT *
-FROM VERICARGO_ONETRUTH.APP.EXCEPTION_DIGEST_RUNS
-ORDER BY RUN_AT DESC
-LIMIT 1;
-```
-
-## 4. Exercise the demo
-
-Ask these three equivalent questions and verify that they return the same governed value:
-
-1. Planning: "What percentage of delivered shipments arrived on or before promise?"
-2. Procurement: "What is supplier delivery compliance against promised dates?"
-3. Logistics: "Show our on-time delivery rate for completed shipments."
-
-Then ask:
-
-> Why is shipment SHP-1002 an exception? Cite the shipping-document evidence.
-
-The agent can propose but cannot create a review case. Create one only after explicitly
-confirming the shipment, linked exceptions, reason, and severity in Streamlit. The stored
-procedure independently blocks unconfirmed actions, unknown IDs, duplicates, and illegal
-state transitions.
+The deployment generates fixtures, creates Snowflake objects, stages CSV/PDF data, runs
+processing and validation, and deploys Streamlit. The optional entitled-account retrieval
+path is in
+[`snowflake/optional/06_search_and_agent_entitled.sql`](snowflake/optional/06_search_and_agent_entitled.sql).
 
 ## Repository map
 
 ```text
-app/                         Streamlit control tower
+app/                         Six-page Streamlit decision experience
 automations/                 CoCo automation prompt
-data/generated/              Synthetic CSV and PDF fixtures
-docs/                        Architecture, demo, and CoCo evidence ledger
-scripts/                     Data generation and deployment helpers
-snowflake/                   Ordered Snowflake deployment SQL
+data/generated/              Team-authored synthetic CSV/PDF fixtures
+docs/                        Architecture, demo, access, tests, and limitations
+scripts/                     Fixture generation, deployment, and secret scan
+snowflake/                   Ordered Snowflake SQL and optional entitled path
 src/vericargo_onetruth/      Deterministic domain logic
-tests/                       Local acceptance tests
-.snowflake/cortex/skills/    Reusable CoCo governance skill
+tests/                       Local acceptance and UI smoke tests
+.cortex/plans/               Approved CoCo plan
+.snowflake/cortex/skills/    Reusable supply-chain governance skill
 ```
 
-## Submission readiness
+## Provenance and access
 
-Before submission, complete every required item in `COCO_USAGE.md`, keep organizer
-eligibility/reuse correspondence outside the public repository, and ensure judges can
-access the repository and deployed Streamlit application.
+All submitted business data and documents are deterministic, team-authored synthetic
+fixtures. Dataset details are in [`DATASETS.md`](DATASETS.md).
 
-Use [`docs/submission-deck.md`](docs/submission-deck.md) for the judge-facing English deck
-copy. The latest executed checks are in [`docs/test-results.md`](docs/test-results.md), and
-the credential-free access instructions are in [`docs/judge-access.md`](docs/judge-access.md).
+The earlier VeriCargo Chrome extension is disclosed team-owned background IP and is not a
+runtime dependency or source of truth for this submission. See
+[`BACKGROUND_IP.md`](BACKGROUND_IP.md).
 
-The public product and demonstration documentation includes:
-
-- [`docs/ui_flow.md`](docs/ui_flow.md): shared context and connected actions;
-- [`docs/demo_flow.md`](docs/demo_flow.md): complete judge journey and safe repeatability;
-- [`docs/known_limitations.md`](docs/known_limitations.md): honest integration/runtime boundary.
-
+Credential-free judge navigation instructions are in
+[`docs/judge-access.md`](docs/judge-access.md).
